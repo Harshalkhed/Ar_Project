@@ -1,0 +1,19 @@
+{
+  "name": "internal-webar-platform",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Internal WebAR experience production platform foundation",
+  "engines": { "node": ">=18" },
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run build && node --test tests/*.test.mjs",
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
+
+
