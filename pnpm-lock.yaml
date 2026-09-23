@@ -20,6 +20,15 @@ importers:
       '@internal-webar/renderer':
         specifier: workspace:*
         version: link:../../packages/renderer
+      '@internal-webar/runtime-core':
+        specifier: workspace:*
+        version: link:../../packages/runtime-core
+      '@internal-webar/tracking':
+        specifier: workspace:*
+        version: link:../../packages/tracking
+      '@internal-webar/tracking-image':
+        specifier: workspace:*
+        version: link:../../packages/tracking-image
       three:
         specifier: 0.186.0
         version: 0.186.0
@@ -62,6 +71,11 @@ importers:
       '@internal-webar/tracking':
         specifier: workspace:*
         version: link:../tracking
+      '@internal-webar/tracking-image-engine':
+        specifier: workspace:*
+        version: link:../tracking-image-engine
+
+  packages/tracking-image-engine: {}
 
 packages:
 

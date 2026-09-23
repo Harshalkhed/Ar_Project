@@ -123,3 +123,27 @@ test('stop releases the engine but keeps listeners so tracking can restart', asy
   engine.callbacks.targetFound(0);
   assert.deepEqual(events.filter((event) => event.type === 'target_found').length, 2);
 });
+
+const projection = Object.freeze([1.5, 0, 0, 0, 0, 2, 0, 0, 0, 0, -1, -1, 0, 0, -2, 0]);
+
+test('engine camera projection is forwarded with found and pose updates; invalid ones are dropped', async () => {
+  const { engine, provider, events } = setup();
+  await provider.initialize(targets);
+  await provider.start();
+  engine.callbacks.targetFound(0, identityPose, projection);
+  engine.callbacks.poseUpdated(0, identityPose, projection);
+  engine.callbacks.poseUpdated(0, identityPose, [1, 2]);
+  assert.deepEqual(events.slice(1), [
+    { type: 'target_found', targetId: 'trigger-a', pose: identityPose, projection },
+    { type: 'pose_updated', targetId: 'trigger-a', pose: identityPose, projection },
+    { type: 'pose_updated', targetId: 'trigger-a', pose: identityPose },
+  ]);
+});
+
+test('a TrackingError thrown by the engine keeps its structured code', async () => {
+  const { engine, provider, events } = setup();
+  await provider.initialize(targets);
+  engine.startError = new TrackingError('permission_denied', 'Engine reported camera denial.');
+  await rejectsWithCode(provider.start(), 'permission_denied');
+  assert.deepEqual(events.at(-1), { type: 'error', code: 'permission_denied', message: 'Engine reported camera denial.' });
+});

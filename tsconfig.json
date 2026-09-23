@@ -1,11 +1,26 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/project-schema" },
-    { "path": "packages/tracking" },
-    { "path": "packages/tracking-image" },
-    { "path": "packages/renderer" },
-    { "path": "packages/runtime-core" },
-    { "path": "apps/preview" }
+    {
+      "path": "packages/project-schema"
+    },
+    {
+      "path": "packages/tracking"
+    },
+    {
+      "path": "packages/tracking-image"
+    },
+    {
+      "path": "packages/tracking-image-engine"
+    },
+    {
+      "path": "packages/renderer"
+    },
+    {
+      "path": "packages/runtime-core"
+    },
+    {
+      "path": "apps/preview"
+    }
   ]
 }

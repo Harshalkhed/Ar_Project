@@ -90,6 +90,19 @@ export class ThreeRenderer implements RendererAdapter {
     writeTransform(this.requireNode(objectId), transform);
   }
 
+  setAnchor(matrix: readonly number[] | null): void {
+    this.assertActive();
+    if (matrix === null) {
+      this.scene.visible = false;
+      return;
+    }
+    if (matrix.length !== 16 || !matrix.every((value) => Number.isFinite(value))) throw new RendererError('invalid_anchor', 'Anchor must be 16 finite numbers.');
+    this.scene.matrixAutoUpdate = false;
+    this.scene.matrix.fromArray(matrix);
+    this.scene.matrixWorldNeedsUpdate = true;
+    this.scene.visible = true;
+  }
+
   setVisible(objectId: string, visible: boolean): void {
     this.requireNode(objectId).visible = visible;
   }

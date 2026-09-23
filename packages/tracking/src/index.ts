@@ -14,6 +14,9 @@ export type TargetPose = readonly [
   number, number, number, number,
 ];
 
+/** Column-major 4×4 camera projection (same layout as TargetPose), e.g. from camera intrinsics. */
+export type CameraProjection = TargetPose;
+
 export function isTargetPose(value: unknown): value is TargetPose {
   return Array.isArray(value) && value.length === 16 && value.every((entry) => typeof entry === 'number' && Number.isFinite(entry));
 }
@@ -22,9 +25,9 @@ export type TrackingErrorCode = 'unsupported' | 'permission_denied' | 'camera_un
 
 export type TrackingEvent =
   | { type: 'initialized' }
-  | { type: 'target_found'; targetId: string; pose?: TargetPose }
+  | { type: 'target_found'; targetId: string; pose?: TargetPose; projection?: CameraProjection }
   | { type: 'target_lost'; targetId: string }
-  | { type: 'pose_updated'; targetId: string; pose: TargetPose }
+  | { type: 'pose_updated'; targetId: string; pose: TargetPose; projection?: CameraProjection }
   | { type: 'error'; message?: string; code?: TrackingErrorCode };
 
 /** Thrown by providers so the runtime can show a specific recovery state instead of a generic failure. */

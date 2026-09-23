@@ -4,7 +4,7 @@ This repository is our own internal WebAR production platform. It is not a fork 
 
 ## Current stage
 
-Stage 0/1: product and architecture foundation, versioned project schema, runtime contracts, a replaceable image-tracking seam, and a Three.js renderer that loads a scene's GLB objects. `apps/preview` is a desktop 3D viewer for a project scene; it does not use the camera or recognize targets yet.
+Stage 0/1: product and architecture foundation, versioned project schema, runtime contracts, an in-house image-tracking engine (no vendor AR SDK), and a Three.js renderer that loads a scene's GLB objects. `apps/preview` has two pages: a desktop 3D viewer, and `ar.html`, a real camera image-tracking test page. The tracking engine is unit-tested but not yet confirmed working on a real Android/iPhone device — see "Real-device test" below.
 
 ## Documents
 
@@ -37,7 +37,17 @@ Each package builds to its own `packages/<name>/dist` through TypeScript project
 
 Vercel builds and serves the site using `vercel.json`. Deploy from the repository root with `npx vercel deploy --prod` after a one-time `npx vercel login`.
 
+## Real-device test (needed next)
+
+`apps/preview/ar.html` points the camera at a printed target and overlays the tracked 3D model, using our own image-tracking engine (`packages/tracking-image-engine`, `packages/tracking-image`'s `BrowserImageTrackingEngine`) — not a vendor SDK. It needs HTTPS (or `localhost`) and a rear camera, so it must be tested from an actual phone, which this environment cannot do:
+
+1. Print `apps/preview/public/projects/office-chair/assets/target.png` (or display it full-screen on another device), and open the deployed `.../ar.html` URL (or `?project=projects/<name>/project.json` for a different project) on a phone.
+2. Tap "Point camera at target", allow camera access, then point the camera at the printed/displayed target. The office chair should appear anchored to it.
+3. If it does not track: the status bar shows a specific reason (e.g. `[permission_denied]`, `[unsupported]`) rather than a blank screen — report what it says.
+
+Regenerate a different target image with `node scripts/generate-target-image.mjs <out.png> [width] [height] [seed]`.
+
 ## Next milestone
 
-Apply `pose_updated` to the loaded scene from a host that keeps tracking and rendering separate, then implement a concrete `ImageTrackingEngine` adapter and validate the flow on an Android device and an iPhone over HTTPS.
+Confirm real-device tracking works (above), then measure and improve mobile performance: move detection into a Web Worker, add frame-to-frame (optical flow) tracking between full re-detections, and calibrate or better-approximate camera intrinsics. See the "known limitations" list in `Architecture.md`'s latest decision entry.
 

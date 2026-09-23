@@ -86,3 +86,16 @@ test('exposes the loaded scene graph so a host can draw it', async () => {
   assert.ok(node, 'object node is part of the exposed scene');
   assert.equal(node.children.length, 1);
 });
+
+test('anchors the scene root to a target pose and hides it when the anchor is cleared', async () => {
+  const renderer = new ThreeRenderer();
+  await renderer.loadScene(await loadFixture(), 'scene-main', placeholderGlb);
+  const pose = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 5, 6, 7, 1];
+  renderer.setAnchor(pose);
+  assert.equal(renderer.scene.visible, true);
+  assert.equal(renderer.scene.matrixAutoUpdate, false);
+  assert.deepEqual(Array.from(renderer.scene.matrix.elements), pose);
+  renderer.setAnchor(null);
+  assert.equal(renderer.scene.visible, false);
+  assert.throws(() => renderer.setAnchor([1, 2, 3]), (error) => error instanceof RendererError && error.code === 'invalid_anchor');
+});

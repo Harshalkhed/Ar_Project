@@ -2,5 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "rootDir": "src", "outDir": "dist", "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo", "lib": ["ES2022", "DOM"] },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../../packages/project-schema" }, { "path": "../../packages/renderer" }]
+  "references": [
+    { "path": "../../packages/project-schema" },
+    { "path": "../../packages/renderer" },
+    { "path": "../../packages/runtime-core" },
+    { "path": "../../packages/tracking" },
+    { "path": "../../packages/tracking-image" }
+  ]
 }

@@ -71,8 +71,9 @@ test('published preview projects are valid and ship their model files', async ()
     const projectUrl = new URL(`${name}/project.json`, projectsDir);
     const project = JSON.parse(await readFile(projectUrl, 'utf8'));
     assert.deepEqual(validateProject(project), [], name);
-    for (const asset of project.assets.filter((entry) => entry.kind === 'model')) {
-      await access(new URL(asset.uri, projectUrl)).catch(() => assert.fail(`${name}: missing model file ${asset.uri}`));
+    // Relative URIs only: an absolute https: asset (allowed by the schema) is hosted elsewhere, not shipped here.
+    for (const asset of project.assets.filter((entry) => !/^https?:/.test(entry.uri))) {
+      await access(new URL(asset.uri, projectUrl)).catch(() => assert.fail(`${name}: missing ${asset.kind} file ${asset.uri}`));
     }
   }
 });

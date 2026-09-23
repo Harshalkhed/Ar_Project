@@ -36,7 +36,7 @@
     }
   ],
   "assets": [
-    { "id": "asset-poster", "kind": "image", "uri": "assets/poster.jpg" },
+    { "id": "asset-poster", "kind": "image", "uri": "assets/target.png" },
     { "id": "asset-chair", "kind": "model", "uri": "assets/office_chair.glb" }
   ],
   "deployment": { "experienceId": "preview-office-chair", "version": 1, "status": "draft", "runtimeVersion": "0.1.0" }

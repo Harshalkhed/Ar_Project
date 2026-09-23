@@ -1,8 +1,9 @@
-import { isTargetPose, TrackingError, type TargetPose, type TrackingErrorCode, type TrackingEvent, type TrackingProvider, type TrackingTarget } from '@internal-webar/tracking';
+import { isTargetPose, TrackingError, type CameraProjection, type TargetPose, type TrackingErrorCode, type TrackingEvent, type TrackingProvider, type TrackingTarget } from '@internal-webar/tracking';
 
 /**
- * Integration seam for a concrete image-recognition engine (ARSY, MindAR, a custom WASM build, ...).
- * A vendor adapter implements this; the vendor SDK types stay inside that adapter.
+ * Integration seam for a concrete image-recognition engine. `BrowserImageTrackingEngine` (this
+ * package) implements it using our own computer-vision pipeline (`@internal-webar/tracking-image-engine`);
+ * a different engine could implement it too, but its types must stay inside that adapter, never here.
  * Targets are identified by their index in the `loadTargets` list.
  */
 export interface ImageTrackingEngine {
@@ -13,10 +14,11 @@ export interface ImageTrackingEngine {
 }
 
 export interface ImageTrackingEngineCallbacks {
-  targetFound(index: number, pose?: TargetPose): void;
+  /** `projection` is the camera projection for the frame the pose came from, when the engine knows it. */
+  targetFound(index: number, pose?: TargetPose, projection?: CameraProjection): void;
   targetLost(index: number): void;
   /** Per-frame pose. Not de-duplicated; a missing or invalid pose is ignored. */
-  poseUpdated(index: number, pose: TargetPose): void;
+  poseUpdated(index: number, pose: TargetPose, projection?: CameraProjection): void;
   failed(error: unknown): void;
 }
 
@@ -34,8 +36,9 @@ export function detectImageTrackingEnvironment(scope: BrowserScope = globalThis 
 const errorName = (error: unknown): string | undefined => (typeof error === 'object' && error !== null && 'name' in error ? String(error.name) : undefined);
 const errorMessage = (error: unknown, fallback: string): string => (error instanceof Error && error.message ? error.message : fallback);
 
-/** Maps getUserMedia DOMException names (a web standard, not vendor API) to tracking error codes. */
+/** Keeps a code the engine already classified; otherwise maps getUserMedia DOMException names (a web standard). */
 function cameraErrorCode(error: unknown): TrackingErrorCode {
+  if (error instanceof TrackingError) return error.code;
   switch (errorName(error)) {
     case 'NotAllowedError':
     case 'SecurityError':
@@ -47,6 +50,10 @@ function cameraErrorCode(error: unknown): TrackingErrorCode {
     default:
       return 'provider_failed';
   }
+}
+
+function withProjection(projection: unknown): { projection?: CameraProjection } {
+  return isTargetPose(projection) ? { projection } : {};
 }
 
 export class ImageTrackingProvider implements TrackingProvider {
@@ -79,9 +86,9 @@ export class ImageTrackingProvider implements TrackingProvider {
     if (this.targetIds.length === 0) this.fail('provider_failed', 'Image tracking was started before initialize().');
     try {
       await this.engine.start({
-        targetFound: (index, pose) => this.transition(index, true, pose),
+        targetFound: (index, pose, projection) => this.transition(index, true, pose, projection),
         targetLost: (index) => this.transition(index, false),
-        poseUpdated: (index, pose) => this.updatePose(index, pose),
+        poseUpdated: (index, pose, projection) => this.updatePose(index, pose, projection),
         failed: (error) => this.emit({ type: 'error', code: 'provider_failed', message: errorMessage(error, 'Image tracking failed.') }),
       });
     } catch (error) {
@@ -99,19 +106,19 @@ export class ImageTrackingProvider implements TrackingProvider {
     return () => this.listeners.delete(listener);
   }
 
-  private transition(index: number, isFound: boolean, pose?: TargetPose): void {
+  private transition(index: number, isFound: boolean, pose?: TargetPose, projection?: CameraProjection): void {
     const targetId = this.targetIds[index];
     if (targetId === undefined || this.found.has(targetId) === isFound) return;
     if (isFound) this.found.add(targetId);
     else this.found.delete(targetId);
     const validPose = isFound && isTargetPose(pose) ? pose : undefined;
-    this.emit(validPose ? { type: 'target_found', targetId, pose: validPose } : { type: isFound ? 'target_found' : 'target_lost', targetId });
+    this.emit(validPose ? { type: 'target_found', targetId, pose: validPose, ...withProjection(projection) } : { type: isFound ? 'target_found' : 'target_lost', targetId });
   }
 
-  private updatePose(index: number, pose: TargetPose): void {
+  private updatePose(index: number, pose: TargetPose, projection?: CameraProjection): void {
     const targetId = this.targetIds[index];
     if (targetId === undefined || !isTargetPose(pose)) return;
-    this.emit({ type: 'pose_updated', targetId, pose });
+    this.emit({ type: 'pose_updated', targetId, pose, ...withProjection(projection) });
   }
 
   private fail(code: TrackingErrorCode, message: string): never {
@@ -123,3 +130,5 @@ export class ImageTrackingProvider implements TrackingProvider {
     for (const listener of this.listeners) listener(event);
   }
 }
+
+export { BrowserImageTrackingEngine } from './browser-engine.js';
