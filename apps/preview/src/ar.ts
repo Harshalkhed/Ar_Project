@@ -7,6 +7,7 @@ import { RuntimeCore, RuntimeError, type RuntimeEvent } from '@internal-webar/ru
 import { TrackingError } from '@internal-webar/tracking';
 import { BrowserImageTrackingEngine, ImageTrackingProvider } from '@internal-webar/tracking-image';
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { withAbsoluteAssetUris } from './resolve-assets.js';
 
 const DEFAULT_PROJECT = 'projects/office-chair/project.json';
 
@@ -62,10 +63,12 @@ async function main(): Promise<void> {
   const project: unknown = JSON.parse(new TextDecoder().decode(await fetchBytes(url)));
   const issues = validateProject(project);
   if (issues.length) throw new Error(`Invalid project: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join('; ')}`);
-  const document = project as ProjectDocument;
-  if (document.tracking.type !== 'image') throw new Error(`This page only handles image tracking; project uses "${document.tracking.type}".`);
-  const sceneId = document.triggers[0]?.sceneIds[0] ?? document.scenes[0]?.id;
+  const rawDocument = project as ProjectDocument;
+  if (rawDocument.tracking.type !== 'image') throw new Error(`This page only handles image tracking; project uses "${rawDocument.tracking.type}".`);
+  const sceneId = rawDocument.triggers[0]?.sceneIds[0] ?? rawDocument.scenes[0]?.id;
   if (!sceneId) throw new Error('Project has no scene to track into.');
+  // Both the renderer and the tracking engine fetch by asset URI; resolve once, up front, for both.
+  const document = withAbsoluteAssetUris(rawDocument, url);
 
   const renderer = new ThreeRenderer();
   const readAsset: AssetReader = (uri) => fetchBytes(new URL(uri, url));
