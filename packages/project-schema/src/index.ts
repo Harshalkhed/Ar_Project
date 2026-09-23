@@ -8,6 +8,8 @@ export interface SceneObject { id: string; assetId?: string; name: string; trans
 export interface Interaction { id: string; event: 'object_click' | 'button_click' | 'target_found'; action: 'show_object' | 'hide_object' | 'change_scene' | 'emit'; targetId?: string; sceneId?: string; }
 export interface Scene { id: string; name: string; objectIds: string[]; interactions: Interaction[]; }
 export interface Trigger { id: string; type: TrackingType; label: string; sceneIds: string[]; config: Record<string, unknown>; }
+/** Provider-neutral config required on `image` triggers: the target image is an `image` asset referenced by stable ID. */
+export interface ImageTriggerConfig { imageAssetId: string; }
 export interface Deployment { experienceId: string; version: number; status: DeploymentStatus; runtimeVersion: string; }
 export interface ProjectDocument {
   schemaVersion: '1.0';

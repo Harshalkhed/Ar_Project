@@ -1,20 +1,10 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "strict": true,
-    "declaration": true,
-    "outDir": "dist",
-    "rootDir": ".",
-    "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@internal-webar/project-schema": ["packages/project-schema/src/index.ts"],
-      "@internal-webar/tracking": ["packages/tracking/src/index.ts"]
-    }
-  },
-  "include": ["packages/**/*.ts", "apps/**/*.ts"]
+  "files": [],
+  "references": [
+    { "path": "packages/project-schema" },
+    { "path": "packages/tracking" },
+    { "path": "packages/tracking-image" },
+    { "path": "packages/runtime-core" },
+    { "path": "apps/preview" }
+  ]
 }
-
-

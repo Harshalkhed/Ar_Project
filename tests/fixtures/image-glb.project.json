@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0",
+  "id": "fixture-image-glb",
+  "name": "Image target with GLB placeholder",
+  "tracking": { "type": "image" },
+  "triggers": [
+    {
+      "id": "trigger-poster",
+      "type": "image",
+      "label": "Poster",
+      "sceneIds": ["scene-main"],
+      "config": { "imageAssetId": "asset-poster" }
+    }
+  ],
+  "scenes": [
+    {
+      "id": "scene-main",
+      "name": "Main",
+      "objectIds": ["object-model"],
+      "interactions": [
+        { "id": "interaction-reveal", "event": "target_found", "action": "show_object", "targetId": "object-model" }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "object-model",
+      "assetId": "asset-model",
+      "name": "Placeholder model",
+      "transform": {
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "visible": false
+    }
+  ],
+  "assets": [
+    { "id": "asset-poster", "kind": "image", "uri": "assets/poster.jpg" },
+    { "id": "asset-model", "kind": "model", "uri": "assets/placeholder.glb" }
+  ],
+  "deployment": { "experienceId": "fixture-image-glb", "version": 1, "status": "draft", "runtimeVersion": "0.1.0" }
+}

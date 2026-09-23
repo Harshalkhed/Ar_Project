@@ -86,3 +86,31 @@ Unit tests cover schema validation and lifecycle contracts. Integration tests co
 
 Decisions: npm workspaces initially, strict TypeScript, provider-neutral schema, injected runtime dependencies, image tracking first, and no upstream source copy. Open questions: pnpm vs npm at scale, editor framework, validation library, Three.js package boundary, WASM worker strategy, storage/database, hosting/CDN, CI, and the exact provider package to integrate.
 
+
+## Decision log
+
+### 2026-09-23 — Per-package builds with TypeScript project references
+
+- **Existing:** one root `tsc` emitted everything to `dist/packages/*/src`; `@internal-webar/*` imports resolved only at typecheck time via `tsconfig` `paths`. The compiled runtime failed with `ERR_MODULE_NOT_FOUND`, and each package's `exports: ./dist/index.js` pointed at a file that was never built.
+- **Change:** each package and `apps/preview` has its own `tsconfig.json` (`composite`, `rootDir: src`, `outDir: dist`). The root `tsconfig.json` only lists references, and `tsc -b` builds them in dependency order. Shared options live in `tsconfig.base.json`. Package `exports` declare `types` + `default`. `paths` was removed, so resolution now uses the workspace links the package manager already creates.
+- **Alternatives:** a Node resolve hook or import map that maps specifiers to root `dist` (hides broken package wiring), or a bundler (a new dependency for a problem the compiler already solves).
+- **Impact:** tests import `packages/<pkg>/dist/index.js`. `typecheck` runs `tsc -b`, because `--noEmit` is not allowed for referenced projects on a clean tree; output lands in the gitignored `dist/`. Invalid `version: "workspace:*"` values were corrected to `0.1.0`.
+
+### 2026-09-23 — Image-tracking engine seam
+
+- `TrackingProvider.initialize(targets)` now receives provider-neutral `TrackingTarget { id, type, sourceUri? }`. `id` is the project trigger ID. The runtime (`resolveTrackingTargets`) resolves `trigger.config.imageAssetId` to the asset URI, so providers never import the project schema.
+- `packages/tracking-image` defines `ImageTrackingEngine` (`loadTargets(uris)`, `start(callbacks)`, `stop()`), with targets identified by index. A concrete engine (ARSY/`@web-ar-studio/webar-engine-sdk`, MindAR, or a custom WASM build) is added later as an adapter that implements this interface. Vendor types stay inside that adapter. `ImageTrackingProvider` owns capability detection (secure context + `getUserMedia`), index→trigger mapping, found/lost de-duplication, and mapping of `getUserMedia` `DOMException` names to structured codes.
+- Failures carry a `TrackingErrorCode` (`unsupported`, `permission_denied`, `camera_unavailable`, `target_load_failed`, `provider_failed`) via `TrackingError` and `error` events. `RuntimeCore` adds `invalid_project`, `unsupported_tracking_type`, and `no_targets`, and emits every failure as a single `runtime_error { code, message }`, so the UI can render a specific recovery state.
+- `RuntimeCore` now uses the documented state machine (`created → initializing → ready ⇄ tracking`, `error`, `stopped`). It rejects a provider whose `type` differs from `project.tracking.type`, refuses a second `start` while running, and unsubscribes on `stop`. `ImageTrackingProvider.stop()` no longer drops listeners, so a restart keeps working.
+- **Not yet in the contract:** per-frame target pose. This belongs with the renderer boundary (next task) so its shape can be designed against Three.js needs.
+
+### 2026-09-23 — Schema 1.0 validation rules (no document shape change)
+
+`validateProject` now takes `unknown` and checks, in addition to the earlier rules: the document is an object, the collections are arrays, IDs are unique within each collection, scene `objectIds` and interaction `targetId`/`sceneId` references resolve, image triggers set `config.imageAssetId` to an `image` asset, `model` assets are `.glb`, and asset URIs are relative paths or `https:` URLs (blocking `javascript:`, `data:`, `http:`, and protocol-relative). `schemaVersion` stays `1.0` because no documents have been published. The reference fixture is `tests/fixtures/image-glb.project.json`.
+
+### Open questions raised by this slice
+
+- **Package manager:** the decision above says npm workspaces, but the repo has a pnpm lockfile, a `pnpm run build` test script, and the pnpm-only `workspace:*` protocol, which `npm install` rejects. The README now documents pnpm, the tooling actually in use. Confirm pnpm or migrate.
+- **glTF (`.gltf` + external buffers):** currently rejected. Allowing it changes asset validation and loader packaging.
+- **Asset URI policy:** whether absolute `https:` URLs to third-party hosts should be allowed, or only our CDN/object-storage origin (a security/hosting decision).
+- **First concrete engine:** which engine implements `ImageTrackingEngine` depends on license and runtime verification of `@web-ar-studio/webar-engine-sdk` and alternatives (see Reuse and provenance decisions).

@@ -17,15 +17,18 @@ Stage 0/1: product and architecture foundation, versioned project schema, runtim
 
 ## Commands
 
-Requires Node.js 18+. After dependencies are available:
+Requires Node.js 18+ (on Windows, Node 21+ so `node --test` expands the test glob itself) and pnpm. The workspace uses the pnpm `workspace:*` protocol; see the package-manager open question in `Architecture.md`.
 
 ```text
-npm install
-npm run typecheck
-npm test
+pnpm install
+pnpm run typecheck   # tsc -b (incremental; emits to each package's gitignored dist/)
+pnpm test            # builds, then runs node --test tests/*.test.mjs
+pnpm run clean       # removes build output
 ```
+
+Each package builds to its own `packages/<name>/dist` through TypeScript project references. The reference project fixture (image trigger → scene → GLB model object) is `tests/fixtures/image-glb.project.json`.
 
 ## Next milestone
 
-Integrate a real image-tracking implementation behind `packages/tracking-image`, add GLB loading through the rendering boundary, and validate the complete flow on an Android and an iPhone device over HTTPS.
+Implement a concrete `ImageTrackingEngine` adapter (the seam in `packages/tracking-image`), add GLB loading through the rendering boundary, and validate the complete flow on an Android and an iPhone device over HTTPS.
 
