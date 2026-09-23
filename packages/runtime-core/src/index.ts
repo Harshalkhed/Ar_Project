@@ -1,5 +1,7 @@
 import { validateProject, type ProjectDocument } from '@internal-webar/project-schema';
-import { TrackingError, type TrackingErrorCode, type TrackingEvent, type TrackingProvider, type TrackingTarget } from '@internal-webar/tracking';
+import { isTargetPose, TrackingError, type TargetPose, type TrackingErrorCode, type TrackingEvent, type TrackingProvider, type TrackingTarget } from '@internal-webar/tracking';
+
+export type { TargetPose } from '@internal-webar/tracking';
 
 export type RuntimeState = 'created' | 'initializing' | 'ready' | 'tracking' | 'error' | 'stopped';
 export type RuntimeErrorCode = 'invalid_project' | 'unsupported_tracking_type' | 'no_targets' | TrackingErrorCode;
@@ -7,7 +9,9 @@ export type RuntimeErrorCode = 'invalid_project' | 'unsupported_tracking_type' |
 export type RuntimeEvent =
   | { type: 'runtime_initialized' }
   | { type: 'tracking_initialized' }
-  | { type: 'target_found' | 'target_lost'; targetId: string }
+  | { type: 'target_found'; targetId: string; pose?: TargetPose }
+  | { type: 'target_lost'; targetId: string }
+  | { type: 'pose_updated'; targetId: string; pose: TargetPose }
   | { type: 'runtime_error'; code: RuntimeErrorCode; message: string };
 
 export class RuntimeError extends Error {
@@ -72,11 +76,14 @@ export class RuntimeCore {
       this.emit({ type: 'tracking_initialized' });
     } else if (event.type === 'error') {
       this.fail(event.code ?? 'provider_failed', event.message ?? 'Tracking failed.');
-    } else if (event.targetId !== undefined) {
+    } else if (event.type === 'pose_updated') {
+      if (isTargetPose(event.pose)) this.emit({ type: 'pose_updated', targetId: event.targetId, pose: event.pose });
+    } else if (event.type === 'target_found' || event.type === 'target_lost') {
       if (event.type === 'target_found') this.found.add(event.targetId);
       else this.found.delete(event.targetId);
       this.state = this.found.size > 0 ? 'tracking' : 'ready';
-      this.emit({ type: event.type, targetId: event.targetId });
+      const pose = event.type === 'target_found' && isTargetPose(event.pose) ? event.pose : undefined;
+      this.emit(pose ? { type: 'target_found', targetId: event.targetId, pose } : { type: event.type, targetId: event.targetId });
     }
   }
 

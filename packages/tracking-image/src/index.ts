@@ -1,4 +1,4 @@
-import { TrackingError, type TrackingErrorCode, type TrackingEvent, type TrackingProvider, type TrackingTarget } from '@internal-webar/tracking';
+import { isTargetPose, TrackingError, type TargetPose, type TrackingErrorCode, type TrackingEvent, type TrackingProvider, type TrackingTarget } from '@internal-webar/tracking';
 
 /**
  * Integration seam for a concrete image-recognition engine (ARSY, MindAR, a custom WASM build, ...).
@@ -13,8 +13,10 @@ export interface ImageTrackingEngine {
 }
 
 export interface ImageTrackingEngineCallbacks {
-  targetFound(index: number): void;
+  targetFound(index: number, pose?: TargetPose): void;
   targetLost(index: number): void;
+  /** Per-frame pose. Not de-duplicated; a missing or invalid pose is ignored. */
+  poseUpdated(index: number, pose: TargetPose): void;
   failed(error: unknown): void;
 }
 
@@ -77,8 +79,9 @@ export class ImageTrackingProvider implements TrackingProvider {
     if (this.targetIds.length === 0) this.fail('provider_failed', 'Image tracking was started before initialize().');
     try {
       await this.engine.start({
-        targetFound: (index) => this.transition(index, true),
+        targetFound: (index, pose) => this.transition(index, true, pose),
         targetLost: (index) => this.transition(index, false),
+        poseUpdated: (index, pose) => this.updatePose(index, pose),
         failed: (error) => this.emit({ type: 'error', code: 'provider_failed', message: errorMessage(error, 'Image tracking failed.') }),
       });
     } catch (error) {
@@ -96,12 +99,19 @@ export class ImageTrackingProvider implements TrackingProvider {
     return () => this.listeners.delete(listener);
   }
 
-  private transition(index: number, isFound: boolean): void {
+  private transition(index: number, isFound: boolean, pose?: TargetPose): void {
     const targetId = this.targetIds[index];
     if (targetId === undefined || this.found.has(targetId) === isFound) return;
     if (isFound) this.found.add(targetId);
     else this.found.delete(targetId);
-    this.emit({ type: isFound ? 'target_found' : 'target_lost', targetId });
+    const validPose = isFound && isTargetPose(pose) ? pose : undefined;
+    this.emit(validPose ? { type: 'target_found', targetId, pose: validPose } : { type: isFound ? 'target_found' : 'target_lost', targetId });
+  }
+
+  private updatePose(index: number, pose: TargetPose): void {
+    const targetId = this.targetIds[index];
+    if (targetId === undefined || !isTargetPose(pose)) return;
+    this.emit({ type: 'pose_updated', targetId, pose });
   }
 
   private fail(code: TrackingErrorCode, message: string): never {

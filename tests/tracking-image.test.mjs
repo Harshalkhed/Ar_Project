@@ -63,6 +63,24 @@ test('start before initialize is rejected', async () => {
   await rejectsWithCode(provider.start(), 'provider_failed');
 });
 
+const identityPose = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+
+test('engine pose is forwarded on target_found and pose_updated', async () => {
+  const { engine, provider, events } = setup();
+  await provider.initialize(targets);
+  await provider.start();
+  engine.callbacks.targetFound(0, identityPose);
+  const moved = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1]);
+  engine.callbacks.poseUpdated(0, moved);
+  engine.callbacks.poseUpdated(0, moved);
+  engine.callbacks.poseUpdated(4, moved);
+  assert.deepEqual(events.slice(1), [
+    { type: 'target_found', targetId: 'trigger-a', pose: identityPose },
+    { type: 'pose_updated', targetId: 'trigger-a', pose: moved },
+    { type: 'pose_updated', targetId: 'trigger-a', pose: moved },
+  ]);
+});
+
 test('engine indices map to target ids with duplicate found/lost suppressed', async () => {
   const { engine, provider, events } = setup();
   await provider.initialize(targets);
