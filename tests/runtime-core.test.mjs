@@ -86,6 +86,23 @@ test('unexpected provider exceptions become provider_failed', async () => {
   assert.deepEqual(events.at(-1), { type: 'runtime_error', code: 'provider_failed', message: 'boom' });
 });
 
+const identityPose = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+
+test('forwards an optional target pose on found and pose_updated without changing tracking state', async () => {
+  const { runtime, provider, events } = setup();
+  await runtime.start(await loadFixture());
+  provider.emit({ type: 'target_found', targetId: 'trigger-poster', pose: identityPose });
+  assert.equal(runtime.state, 'tracking');
+  const moved = Object.freeze([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0.25, 0, 0, 1]);
+  provider.emit({ type: 'pose_updated', targetId: 'trigger-poster', pose: moved });
+  assert.equal(runtime.state, 'tracking');
+  provider.emit({ type: 'pose_updated', targetId: 'trigger-poster', pose: [1, 2, 3] });
+  assert.deepEqual(events.slice(2), [
+    { type: 'target_found', targetId: 'trigger-poster', pose: identityPose },
+    { type: 'pose_updated', targetId: 'trigger-poster', pose: moved },
+  ]);
+});
+
 test('tracks while any target is found and returns to ready when all are lost', async () => {
   const { runtime, provider, events } = setup();
   await runtime.start(await loadFixture());

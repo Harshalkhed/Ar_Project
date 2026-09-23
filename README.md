@@ -4,7 +4,7 @@ This repository is our own internal WebAR production platform. It is not a fork 
 
 ## Current stage
 
-Stage 0/1: product and architecture foundation, versioned project schema, runtime contracts, and replaceable tracking seams. The current preview is a foundation fixture; it does not claim to recognize camera targets yet.
+Stage 0/1: product and architecture foundation, versioned project schema, runtime contracts, a replaceable image-tracking seam, and a Three.js renderer that loads a scene's GLB objects. The preview does not recognize camera targets or draw the loaded model yet.
 
 ## Documents
 
@@ -30,5 +30,5 @@ Each package builds to its own `packages/<name>/dist` through TypeScript project
 
 ## Next milestone
 
-Implement a concrete `ImageTrackingEngine` adapter (the seam in `packages/tracking-image`), add GLB loading through the rendering boundary, and validate the complete flow on an Android and an iPhone device over HTTPS.
+Apply `pose_updated` to the loaded scene from a host that keeps tracking and rendering separate, then implement a concrete `ImageTrackingEngine` adapter and validate the flow on an Android device and an iPhone over HTTPS.
 

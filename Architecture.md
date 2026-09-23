@@ -27,6 +27,8 @@ The WebAR.Studio reference describes a broader product model: a no-code Design S
 - **Potentially wrapped:** a future ARSY image/QR/face implementation may be wrapped inside `packages/tracking-*` if its package license and runtime contract are verified.
 - **Not copied now:** no upstream source code is in the product packages. This keeps the initial architecture independent and makes replacement possible.
 - **License record:** upstream root `LICENSE` is Apache License 2.0. Apache redistribution requires retaining the license/attribution notices and marking modified files. The current npm templates depend on `@web-ar-studio/webar-engine-sdk`, `three`, `vite`, `normalize.css`, and `prompts`; each must be rechecked from its own published package metadata before any redistribution or source copy.
+- **`three@0.186.0`** (MIT, Copyright © 2010-2026 three.js authors, https://github.com/mrdoob/three.js). Added as a runtime dependency of `packages/renderer` only. The published npm package is consumed as-is; no three.js source is copied into this repository, and nothing is taken from `.reference/open-webar-sdk`. `GLTFLoader` is imported from the package's own `three/addons/loaders/GLTFLoader.js` entry (`examples/jsm`). The `three@0.186.0` tarball contains no `.d.ts` files.
+- **`@types/three@0.186.0`** (MIT, Copyright (c) Microsoft Corporation, DefinitelyTyped). Compile-time types for `three@0.186.0` only. Not shipped in the runtime bundle beyond what the compiler erases.
 
 This is a preliminary technical licensing review and is not legal advice.
 
@@ -35,7 +37,7 @@ This is a preliminary technical licensing review and is not legal advice.
 ```text
 Internal editor → versioned project document → runtime core
                                       ↘ tracking provider adapter
-                                      ↘ renderer adapter (Three.js later)
+                                      ↘ renderer adapter (Three.js GLB loader)
                                       ↘ asset loader
                                       ↘ analytics sink
 ```
@@ -50,7 +52,7 @@ packages/project-schema/      versioned provider-neutral document and validation
 packages/runtime-core/        lifecycle, provider selection, events, failure states
 packages/tracking/            provider contract and capability types
 packages/tracking-image/      image provider adapter seam
-packages/renderer/            future Three.js boundary
+packages/renderer/            Three.js GLB loader behind RendererAdapter
 packages/interaction/         future event/condition/action execution
 packages/animation/           future controlled animation model
 services/                     future API, publishing, storage, analytics
@@ -84,7 +86,7 @@ Unit tests cover schema validation and lifecycle contracts. Integration tests co
 
 ## Decisions and open questions
 
-Decisions: npm workspaces initially, strict TypeScript, provider-neutral schema, injected runtime dependencies, image tracking first, and no upstream source copy. Open questions: pnpm vs npm at scale, editor framework, validation library, Three.js package boundary, WASM worker strategy, storage/database, hosting/CDN, CI, and the exact provider package to integrate.
+Decisions: npm workspaces initially, strict TypeScript, provider-neutral schema, injected runtime dependencies, image tracking first, no upstream source copy, and a Three.js renderer isolated in `packages/renderer`. Open questions: pnpm vs npm at scale, editor framework, validation library, WASM worker strategy, storage/database, hosting/CDN, CI, and the exact provider package to integrate.
 
 
 ## Decision log
@@ -102,11 +104,21 @@ Decisions: npm workspaces initially, strict TypeScript, provider-neutral schema,
 - `packages/tracking-image` defines `ImageTrackingEngine` (`loadTargets(uris)`, `start(callbacks)`, `stop()`), with targets identified by index. A concrete engine (ARSY/`@web-ar-studio/webar-engine-sdk`, MindAR, or a custom WASM build) is added later as an adapter that implements this interface. Vendor types stay inside that adapter. `ImageTrackingProvider` owns capability detection (secure context + `getUserMedia`), index→trigger mapping, found/lost de-duplication, and mapping of `getUserMedia` `DOMException` names to structured codes.
 - Failures carry a `TrackingErrorCode` (`unsupported`, `permission_denied`, `camera_unavailable`, `target_load_failed`, `provider_failed`) via `TrackingError` and `error` events. `RuntimeCore` adds `invalid_project`, `unsupported_tracking_type`, and `no_targets`, and emits every failure as a single `runtime_error { code, message }`, so the UI can render a specific recovery state.
 - `RuntimeCore` now uses the documented state machine (`created → initializing → ready ⇄ tracking`, `error`, `stopped`). It rejects a provider whose `type` differs from `project.tracking.type`, refuses a second `start` while running, and unsubscribes on `stop`. `ImageTrackingProvider.stop()` no longer drops listeners, so a restart keeps working.
-- **Not yet in the contract:** per-frame target pose. This belongs with the renderer boundary (next task) so its shape can be designed against Three.js needs.
+- **Not yet in the contract (superseded the same day):** per-frame target pose. Added in the renderer-boundary decision below.
 
 ### 2026-09-23 — Schema 1.0 validation rules (no document shape change)
 
 `validateProject` now takes `unknown` and checks, in addition to the earlier rules: the document is an object, the collections are arrays, IDs are unique within each collection, scene `objectIds` and interaction `targetId`/`sceneId` references resolve, image triggers set `config.imageAssetId` to an `image` asset, `model` assets are `.glb`, and asset URIs are relative paths or `https:` URLs (blocking `javascript:`, `data:`, `http:`, and protocol-relative). `schemaVersion` stays `1.0` because no documents have been published. The reference fixture is `tests/fixtures/image-glb.project.json`.
+
+### 2026-09-23 — Renderer boundary and target pose
+
+- **Existing:** `TrackingEvent` had no pose. `packages/renderer` was only a proposed future boundary, and “Three.js package boundary” was an open question. Nothing loaded a GLB.
+- **Change:** `TargetPose` is a column-major 4×4 matrix of 16 finite numbers, the same layout as Three.js `Matrix4.elements` (translation in elements 12, 13, and 14). It is optional on `target_found`. `pose_updated` carries a pose and does not change the found/lost set or the runtime state. A pose that is not 16 finite numbers is dropped. `ImageTrackingEngineCallbacks.targetFound` accepts an optional pose, and `poseUpdated` forwards later frames. No camera engine is included.
+- **Renderer:** `RendererAdapter` loads one scene from an untrusted project (`validateProject` again at the boundary), applies each object's `Transform`, sets visibility, and disposes. `ThreeRenderer` is the only implementation. Model assets are read through an injected `AssetReader` (the renderer does not fetch URLs), rejected unless the bytes start with the GLB magic `glTF`, then parsed with `GLTFLoader`. `packages/renderer` does not import `tracking` or `tracking-image`. Those packages do not import the renderer. `RuntimeCore` forwards pose and does not construct a renderer.
+- **Transform:** rotation is Euler XYZ in radians, matching `Object3D.rotation`. The document shape is unchanged, so `schemaVersion` stays `1.0`. The reference model is a self-authored one-triangle GLB at `tests/fixtures/assets/placeholder.glb` (`assets/placeholder.glb` on `asset-model`).
+- **Alternatives:** fold Three.js into `runtime-core` (couples lifecycle to one renderer); allow `.gltf` plus external buffers (rejected in the schema slice); copy a sample GLB or loader from three.js examples or `.reference/open-webar-sdk` (license and boundary); store rotation in degrees (an extra conversion at the adapter).
+- **Impact:** `three@0.186.0` and `@types/three@0.186.0` belong to `packages/renderer` only. `@types/three` is required because that three tarball ships no `.d.ts`. Tests cover pose forwarding, GLB load, a bad magic header (`asset_load_failed`), and the import boundary.
+- **Migration:** published documents do not change. A host that wants pixels must pass an `AssetReader`, call `loadScene`, and apply `pose_updated` itself. That host is not in this slice.
 
 ### Open questions raised by this slice
 
@@ -114,3 +126,5 @@ Decisions: npm workspaces initially, strict TypeScript, provider-neutral schema,
 - **glTF (`.gltf` + external buffers):** currently rejected. Allowing it changes asset validation and loader packaging.
 - **Asset URI policy:** whether absolute `https:` URLs to third-party hosts should be allowed, or only our CDN/object-storage origin (a security/hosting decision).
 - **First concrete engine:** which engine implements `ImageTrackingEngine` depends on license and runtime verification of `@web-ar-studio/webar-engine-sdk` and alternatives (see Reuse and provenance decisions).
+- **Pose application:** `TargetPose` is forwarded by the runtime and is not applied to a rendered object. The renderer must not import tracking, so a host (preview or runtime compositor) should copy `pose_updated` onto the loaded object's matrix.
+- **Asset bytes:** the renderer receives bytes from `AssetReader`. Which host resolves `assets/placeholder.glb` and `https:` URIs (preview, CDN, object storage) is still the asset-URI policy question above.
