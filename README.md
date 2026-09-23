@@ -4,7 +4,7 @@ This repository is our own internal WebAR production platform. It is not a fork 
 
 ## Current stage
 
-Stage 0/1: product and architecture foundation, versioned project schema, runtime contracts, an in-house image-tracking engine (no vendor AR SDK), and a Three.js renderer that loads a scene's GLB objects. `apps/preview` has two pages: a desktop 3D viewer, and `ar.html`, a real camera image-tracking test page. The tracking engine is unit-tested but not yet confirmed working on a real Android/iPhone device — see "Real-device test" below.
+Stage 0/1: product and architecture foundation, versioned project schema, runtime contracts, an in-house image-tracking engine (no vendor AR SDK), and a Three.js renderer that loads a scene's GLB objects. `apps/preview` has two pages: a desktop 3D viewer, and `ar.html`, a real camera image-tracking test page — confirmed working on a real iPhone (detection, pose smoothing, pinch-to-scale, Reset). This is image-anchored placement, not room-fixed placement; see the two-tier plan in `Architecture.md`.
 
 ## Documents
 
@@ -37,17 +37,20 @@ Each package builds to its own `packages/<name>/dist` through TypeScript project
 
 Vercel builds and serves the site using `vercel.json`. Deploy from the repository root with `npx vercel deploy --prod` after a one-time `npx vercel login`.
 
-## Real-device test (needed next)
+## Real-device test
 
-`apps/preview/ar.html` points the camera at a printed target and overlays the tracked 3D model, using our own image-tracking engine (`packages/tracking-image-engine`, `packages/tracking-image`'s `BrowserImageTrackingEngine`) — not a vendor SDK. It needs HTTPS (or `localhost`) and a rear camera, so it must be tested from an actual phone, which this environment cannot do:
+`apps/preview/ar.html` points the camera at a target image and overlays the tracked 3D model, using our own image-tracking engine (`packages/tracking-image-engine`, `packages/tracking-image`'s `BrowserImageTrackingEngine`) — not a vendor SDK. Needs HTTPS (or `localhost`) and a rear camera:
 
-1. Print `apps/preview/public/projects/office-chair/assets/target.png` (or display it full-screen on another device), and open the deployed `.../ar.html` URL (or `?project=projects/<name>/project.json` for a different project) on a phone.
-2. Tap "Point camera at target", allow camera access, then point the camera at the printed/displayed target. The office chair should appear anchored to it.
+1. Print the project's target image (or display it full-screen on another device), and open the deployed `.../ar.html` URL (or `?project=projects/<name>/project.json` for a different project) on a phone.
+2. Tap "Point camera at target", allow camera access, then point the camera at the target. Found content stays visible (and can be pinch-to-scale resized) even after you look away — tap **Reset** to track again from scratch.
 3. If it does not track: the status bar shows a specific reason (e.g. `[permission_denied]`, `[unsupported]`) rather than a blank screen — report what it says.
 
-Regenerate a different target image with `node scripts/generate-target-image.mjs <out.png> [width] [height] [seed]`.
+This is **image-anchored** placement: content stays attached to wherever the target currently is on screen, not fixed at a point in the room. Regenerate a different target image with `node scripts/generate-target-image.mjs <out.png> [width] [height] [seed]`.
 
 ## Next milestone
 
-Confirm real-device tracking works (above), then measure and improve mobile performance: move detection into a Web Worker, add frame-to-frame (optical flow) tracking between full re-detections, and calibrate or better-approximate camera intrinsics. See the "known limitations" list in `Architecture.md`'s latest decision entry.
+Two tracks, per the two-tier decision in `Architecture.md`:
+
+1. **Room-fixed placement (Android/Chrome only — WebXR, iOS Safari cannot do this without a paid SDK).** A new `TrackingProvider` using WebXR hit-test and anchors; `'webxr'` is already a valid schema `tracking.type`. Not started; needs an Android device to verify.
+2. **Mobile performance for the existing image-tracking engine.** Move detection into a Web Worker, add frame-to-frame (optical flow) tracking between full re-detections, and calibrate or better-approximate camera intrinsics. See the "known limitations" list in `Architecture.md`'s in-house-engine decision entry.
 
