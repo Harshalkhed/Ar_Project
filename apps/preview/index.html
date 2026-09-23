@@ -1,1 +1,19 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>WebAR Runtime Preview</title></head><body><main><h1>WebAR Runtime Preview</h1><p id="status">Load a project fixture to start.</p></main><script type="module" src="./src/main.ts"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebAR Runtime Preview</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #20232a; color: #e8e8e8; font: 14px/1.4 system-ui, sans-serif; }
+    #viewport { display: block; width: 100%; height: 100%; touch-action: none; }
+    #status { position: fixed; left: 12px; right: 12px; bottom: 12px; margin: 0; padding: 8px 12px; border-radius: 6px; background: rgb(0 0 0 / 0.6); }
+    #status[data-state="error"] { background: #7a1f1f; }
+  </style>
+</head>
+<body>
+  <canvas id="viewport"></canvas>
+  <p id="status">Loading preview…</p>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

@@ -3,3 +3,5 @@ node_modules/
 dist/
 .superpowers/
 *.tsbuildinfo
+apps/preview/site/
+.vercel/

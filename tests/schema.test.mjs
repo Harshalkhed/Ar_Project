@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import { validateProject } from '../packages/project-schema/dist/index.js';
 
 const base = { schemaVersion: '1.0', id: 'demo', name: 'Demo', tracking: { type: 'image' }, triggers: [{ id: 'trigger-1', type: 'image', label: 'Poster', sceneIds: ['scene-1'], config: { imageAssetId: 'asset-image' } }], scenes: [{ id: 'scene-1', name: 'Main', objectIds: [], interactions: [] }], objects: [], assets: [{ id: 'asset-image', kind: 'image', uri: 'assets/poster.jpg' }], deployment: { experienceId: 'demo', version: 1, status: 'draft', runtimeVersion: '0.1.0' } };
@@ -61,4 +61,18 @@ test('image + GLB fixture is a valid project', async () => {
   assert.deepEqual(validateProject(fixture), []);
   const object = fixture.objects.find((candidate) => candidate.id === 'object-model');
   assert.equal(fixture.assets.find((asset) => asset.id === object.assetId).uri, 'assets/placeholder.glb');
+});
+
+test('published preview projects are valid and ship their model files', async () => {
+  const projectsDir = new URL('../apps/preview/public/projects/', import.meta.url);
+  const names = (await readdir(projectsDir, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  assert.ok(names.includes('office-chair'));
+  for (const name of names) {
+    const projectUrl = new URL(`${name}/project.json`, projectsDir);
+    const project = JSON.parse(await readFile(projectUrl, 'utf8'));
+    assert.deepEqual(validateProject(project), [], name);
+    for (const asset of project.assets.filter((entry) => entry.kind === 'model')) {
+      await access(new URL(asset.uri, projectUrl)).catch(() => assert.fail(`${name}: missing model file ${asset.uri}`));
+    }
+  }
 });

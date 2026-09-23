@@ -53,7 +53,8 @@ function failureMessage(error: unknown, fallback: string): string {
 
 /** Three.js implementation of {@link RendererAdapter}. Three.js types stay inside this module. */
 export class ThreeRenderer implements RendererAdapter {
-  private readonly scene = new Scene();
+  /** Root of the loaded objects. A Three.js host adds this to its own stage (lights, camera) and draws it. */
+  readonly scene = new Scene();
   private readonly nodes = new Map<string, Object3D>();
   private disposed = false;
 

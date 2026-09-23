@@ -78,3 +78,11 @@ async function sourceFiles(directory) {
   }
   return files;
 }
+
+test('exposes the loaded scene graph so a host can draw it', async () => {
+  const renderer = new ThreeRenderer();
+  await renderer.loadScene(await loadFixture(), 'scene-main', placeholderGlb);
+  const node = renderer.scene.getObjectByName('object-model');
+  assert.ok(node, 'object node is part of the exposed scene');
+  assert.equal(node.children.length, 1);
+});
