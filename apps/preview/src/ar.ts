@@ -1,21 +1,29 @@
 // Real camera image-tracking test page. Requires HTTPS (or localhost) and a rear camera.
 // Camera passthrough (this file's own <video>) is a rendering/display concern, kept separate from
 // the tracking engine's own internal camera capture (BrowserImageTrackingEngine) — see Architecture.md.
-import { validateProject, type ProjectDocument } from '@internal-webar/project-schema';
+import { validateProject, type ProjectDocument, type Transform } from '@internal-webar/project-schema';
 import { RendererError, ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
-import { RuntimeCore, RuntimeError, type RuntimeEvent } from '@internal-webar/runtime-core';
+import { RuntimeCore, RuntimeError, type CameraProjection, type RuntimeEvent, type TargetPose } from '@internal-webar/runtime-core';
 import { TrackingError } from '@internal-webar/tracking';
 import { BrowserImageTrackingEngine, ImageTrackingProvider } from '@internal-webar/tracking-image';
 import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { PoseSmoother } from './pose-smoother.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
+import { scaledTransform } from './transform-utils.js';
 
 const DEFAULT_PROJECT = 'projects/office-chair/project.json';
+/** Weight given to each new tracked pose; lower is smoother but laggier. Tuned by eye, not measured. */
+const SMOOTHING_ALPHA = 0.25;
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 10;
 
 const statusElement = document.querySelector<HTMLParagraphElement>('#status');
 const canvas = document.querySelector<HTMLCanvasElement>('#viewport');
 const cameraVideo = document.querySelector<HTMLVideoElement>('#camera');
 const startOverlay = document.querySelector<HTMLDivElement>('#start');
 const startButton = document.querySelector<HTMLButtonElement>('#start-button');
+const resetButton = document.querySelector<HTMLButtonElement>('#reset-button');
+const scaleBadge = document.querySelector<HTMLDivElement>('#scale-badge');
 
 function setStatus(message: string, state: 'info' | 'error' | 'tracking' = 'info'): void {
   if (!statusElement) return;
@@ -74,8 +82,26 @@ async function main(): Promise<void> {
   const readAsset: AssetReader = (uri) => fetchBytes(new URL(uri, url));
   await renderer.loadScene(document, sceneId, readAsset);
   const scene = document.scenes.find((entry) => entry.id === sceneId);
-  for (const objectId of scene?.objectIds ?? []) renderer.setVisible(objectId, true);
+  const objectIds = scene?.objectIds ?? [];
+  for (const objectId of objectIds) renderer.setVisible(objectId, true);
   renderer.setAnchor(null); // Hidden until the target is found.
+
+  // Authored (unscaled) transforms, captured once, so repeated pinch/scroll always scales from the
+  // original size rather than compounding rounding error onto whatever the last scale left behind.
+  const baseTransforms = new Map<string, Transform>();
+  for (const objectId of objectIds) {
+    const transform = renderer.getObjectState(objectId)?.transform;
+    if (transform) baseTransforms.set(objectId, transform);
+  }
+  let scaleFactor = 1;
+  const setScale = (value: number): void => {
+    scaleFactor = Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
+    for (const [objectId, base] of baseTransforms) renderer.applyTransform(objectId, scaledTransform(base, scaleFactor));
+    if (scaleBadge) scaleBadge.textContent = `${Math.round(scaleFactor * 100)}%`;
+  };
+  setScale(1);
+
+  const smoother = new PoseSmoother(SMOOTHING_ALPHA);
 
   const stage = new Scene();
   stage.add(renderer.scene);
@@ -92,24 +118,36 @@ async function main(): Promise<void> {
 
   await startCameraPassthrough(cameraVideo);
 
+  const applyPose = (pose: TargetPose | undefined): void => {
+    if (!pose) return;
+    renderer.setAnchor(smoother.update(pose));
+  };
+  const applyProjection = (projection: CameraProjection | undefined): void => {
+    if (!projection) return;
+    camera.projectionMatrix.fromArray(projection);
+    camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+  };
+
   const provider = new ImageTrackingProvider(new BrowserImageTrackingEngine());
   const runtime = new RuntimeCore(provider, (event) => {
     switch (event.type) {
       case 'runtime_initialized':
-        setStatus('Point the camera at the printed target.');
+        setStatus('Point the camera at the target.');
         break;
       case 'target_found':
-        if (event.pose) renderer.setAnchor(event.pose);
-        if (event.projection) { camera.projectionMatrix.fromArray(event.projection); camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert(); }
-        setStatus('Target found.', 'tracking');
+        applyPose(event.pose);
+        applyProjection(event.projection);
+        setStatus('Found — place it, then pinch or scroll to resize. Reset to track again.', 'tracking');
         break;
       case 'pose_updated':
-        renderer.setAnchor(event.pose);
-        if (event.projection) { camera.projectionMatrix.fromArray(event.projection); camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert(); }
+        applyPose(event.pose);
+        applyProjection(event.projection);
         break;
       case 'target_lost':
-        renderer.setAnchor(null);
-        setStatus('Target lost — point the camera at it again.');
+        // Image-anchored placement, not room placement (see Architecture.md): keep the content at
+        // its last known pose instead of hiding it, so looking away from the target does not make
+        // it disappear. It stays screen-relative, not fixed in the room, until Reset is pressed.
+        setStatus('Target out of view — showing last position. Reset to track again.');
         break;
       case 'runtime_error':
         renderer.setAnchor(null);
@@ -118,8 +156,56 @@ async function main(): Promise<void> {
     }
   });
 
+  resetButton?.addEventListener('click', () => {
+    renderer.setAnchor(null);
+    smoother.reset();
+    setScale(1);
+    setStatus('Point the camera at the target.');
+  });
+  setUpScaleGestures(canvas, setScale, () => scaleFactor);
+
   gl.setAnimationLoop(() => gl.render(stage, camera));
   await runtime.start(document);
+}
+
+/** Two-finger pinch (touch) and mouse-wheel (desktop) resize the placed content. */
+function setUpScaleGestures(canvas: HTMLCanvasElement, setScale: (value: number) => void, getScale: () => number): void {
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinchStartDistance: number | null = null;
+  let pinchStartScale = 1;
+
+  const distanceBetween = (): number | null => {
+    if (pointers.size < 2) return null;
+    const [a, b] = [...pointers.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  };
+  const forgetPointer = (event: PointerEvent): void => {
+    pointers.delete(event.pointerId);
+    pinchStartDistance = null;
+  };
+
+  canvas.addEventListener('pointerdown', (event) => {
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 2) {
+      pinchStartDistance = distanceBetween();
+      pinchStartScale = getScale();
+    }
+  });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const distance = distanceBetween();
+    if (distance && pinchStartDistance) setScale(pinchStartScale * (distance / pinchStartDistance));
+  });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) canvas.addEventListener(type, forgetPointer);
+  canvas.addEventListener(
+    'wheel',
+    (event) => {
+      event.preventDefault();
+      setScale(getScale() * (event.deltaY < 0 ? 1.05 : 1 / 1.05));
+    },
+    { passive: false },
+  );
 }
 
 startButton?.addEventListener('click', () => {
