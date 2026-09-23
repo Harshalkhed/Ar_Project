@@ -6,6 +6,9 @@
   "dependencies": {
     "@internal-webar/project-schema": "workspace:*",
     "@internal-webar/renderer": "workspace:*",
+    "@internal-webar/runtime-core": "workspace:*",
+    "@internal-webar/tracking": "workspace:*",
+    "@internal-webar/tracking-image": "workspace:*",
     "three": "0.186.0"
   },
   "devDependencies": {

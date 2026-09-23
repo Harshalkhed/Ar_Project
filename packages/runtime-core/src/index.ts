@@ -1,7 +1,7 @@
 import { validateProject, type ProjectDocument } from '@internal-webar/project-schema';
-import { isTargetPose, TrackingError, type TargetPose, type TrackingErrorCode, type TrackingEvent, type TrackingProvider, type TrackingTarget } from '@internal-webar/tracking';
+import { isTargetPose, TrackingError, type CameraProjection, type TargetPose, type TrackingErrorCode, type TrackingEvent, type TrackingProvider, type TrackingTarget } from '@internal-webar/tracking';
 
-export type { TargetPose } from '@internal-webar/tracking';
+export type { CameraProjection, TargetPose } from '@internal-webar/tracking';
 
 export type RuntimeState = 'created' | 'initializing' | 'ready' | 'tracking' | 'error' | 'stopped';
 export type RuntimeErrorCode = 'invalid_project' | 'unsupported_tracking_type' | 'no_targets' | TrackingErrorCode;
@@ -9,9 +9,9 @@ export type RuntimeErrorCode = 'invalid_project' | 'unsupported_tracking_type' |
 export type RuntimeEvent =
   | { type: 'runtime_initialized' }
   | { type: 'tracking_initialized' }
-  | { type: 'target_found'; targetId: string; pose?: TargetPose }
+  | { type: 'target_found'; targetId: string; pose?: TargetPose; projection?: CameraProjection }
   | { type: 'target_lost'; targetId: string }
-  | { type: 'pose_updated'; targetId: string; pose: TargetPose }
+  | { type: 'pose_updated'; targetId: string; pose: TargetPose; projection?: CameraProjection }
   | { type: 'runtime_error'; code: RuntimeErrorCode; message: string };
 
 export class RuntimeError extends Error {
@@ -77,13 +77,13 @@ export class RuntimeCore {
     } else if (event.type === 'error') {
       this.fail(event.code ?? 'provider_failed', event.message ?? 'Tracking failed.');
     } else if (event.type === 'pose_updated') {
-      if (isTargetPose(event.pose)) this.emit({ type: 'pose_updated', targetId: event.targetId, pose: event.pose });
+      if (isTargetPose(event.pose)) this.emit({ type: 'pose_updated', targetId: event.targetId, pose: event.pose, ...withProjection(event.projection) });
     } else if (event.type === 'target_found' || event.type === 'target_lost') {
       if (event.type === 'target_found') this.found.add(event.targetId);
       else this.found.delete(event.targetId);
       this.state = this.found.size > 0 ? 'tracking' : 'ready';
-      const pose = event.type === 'target_found' && isTargetPose(event.pose) ? event.pose : undefined;
-      this.emit(pose ? { type: 'target_found', targetId: event.targetId, pose } : { type: event.type, targetId: event.targetId });
+      if (event.type === 'target_found' && isTargetPose(event.pose)) this.emit({ type: 'target_found', targetId: event.targetId, pose: event.pose, ...withProjection(event.projection) });
+      else this.emit({ type: event.type, targetId: event.targetId });
     }
   }
 
@@ -91,6 +91,11 @@ export class RuntimeCore {
     this.state = 'error';
     this.emit({ type: 'runtime_error', code, message });
   }
+}
+
+/** Adds the projection only when it is a valid matrix, so consumers never see a malformed one. */
+function withProjection(projection: unknown): { projection?: CameraProjection } {
+  return isTargetPose(projection) ? { projection } : {};
 }
 
 function errorCode(error: unknown): RuntimeErrorCode {

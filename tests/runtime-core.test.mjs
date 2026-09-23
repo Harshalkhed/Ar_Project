@@ -150,3 +150,17 @@ test('fixture runs end to end through the image provider seam', async () => {
   assert.equal(runtime.state, 'tracking');
   assert.deepEqual(events.at(-1), { type: 'target_found', targetId: 'trigger-poster' });
 });
+
+test('forwards the camera projection alongside target poses', async () => {
+  const { runtime, provider, events } = setup();
+  await runtime.start(await loadFixture());
+  const projection = Object.freeze([1.5, 0, 0, 0, 0, 2, 0, 0, 0, 0, -1, -1, 0, 0, -2, 0]);
+  provider.emit({ type: 'target_found', targetId: 'trigger-poster', pose: identityPose, projection });
+  provider.emit({ type: 'pose_updated', targetId: 'trigger-poster', pose: identityPose, projection });
+  provider.emit({ type: 'pose_updated', targetId: 'trigger-poster', pose: identityPose, projection: [0] });
+  assert.deepEqual(events.slice(2), [
+    { type: 'target_found', targetId: 'trigger-poster', pose: identityPose, projection },
+    { type: 'pose_updated', targetId: 'trigger-poster', pose: identityPose, projection },
+    { type: 'pose_updated', targetId: 'trigger-poster', pose: identityPose },
+  ]);
+});

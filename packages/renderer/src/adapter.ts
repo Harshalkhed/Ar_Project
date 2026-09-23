@@ -1,6 +1,6 @@
 import type { Transform } from '@internal-webar/project-schema';
 
-export type RendererErrorCode = 'invalid_project' | 'unknown_scene' | 'unknown_object' | 'asset_load_failed' | 'disposed';
+export type RendererErrorCode = 'invalid_project' | 'unknown_scene' | 'unknown_object' | 'asset_load_failed' | 'invalid_anchor' | 'disposed';
 
 /** Reads asset bytes for a project URI. The host resolves paths; the renderer does not fetch. */
 export type AssetReader = (uri: string) => Promise<Uint8Array>;
@@ -21,6 +21,11 @@ export interface RendererAdapter {
   loadScene(project: unknown, sceneId: string, readAsset: AssetReader): Promise<void>;
   applyTransform(objectId: string, transform: Transform): void;
   setVisible(objectId: string, visible: boolean): void;
+  /**
+   * Places the whole scene in camera space with a column-major 4×4 matrix (16 finite numbers), or hides it with null.
+   * Objects keep their authored transforms relative to this anchor. Plain numbers keep the renderer independent of tracking.
+   */
+  setAnchor(matrix: readonly number[] | null): void;
   getObjectState(objectId: string): LoadedObjectState | undefined;
   dispose(): void;
 }
