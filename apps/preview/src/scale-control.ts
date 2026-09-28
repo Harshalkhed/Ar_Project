@@ -86,12 +86,39 @@ export function createObjectControl(renderer: RendererAdapter, objectIds: readon
   };
 }
 
-/** One-finger drag orbits the object (Sketchfab-style: horizontal = spin, vertical = tilt); two-finger pinch (touch) and mouse-wheel (desktop) resize it. */
+const MOMENTUM_DAMPING_PER_FRAME = 0.94;
+const MOMENTUM_STOP_RADIANS = 0.0005;
+
+/**
+ * One-finger drag orbits the object (Sketchfab-style: horizontal = spin, vertical = tilt), and
+ * keeps coasting with decaying momentum after release, like flicking a Sketchfab embed, instead of
+ * stopping dead the instant a finger lifts. Two-finger pinch (touch) and mouse-wheel (desktop)
+ * resize it.
+ */
 export function setUpTransformGestures(canvas: HTMLCanvasElement, control: ObjectControl): void {
   const ROTATE_RADIANS_PER_PIXEL = 0.01;
   const pointers = new Map<number, { x: number; y: number }>();
   let pinchStartDistance: number | null = null;
   let pinchStartScale = 1;
+  let velocityYaw = 0;
+  let velocityPitch = 0;
+  let momentumFrame: number | null = null;
+
+  const stopMomentum = (): void => {
+    if (momentumFrame !== null) cancelAnimationFrame(momentumFrame);
+    momentumFrame = null;
+  };
+  const coast = (): void => {
+    velocityYaw *= MOMENTUM_DAMPING_PER_FRAME;
+    velocityPitch *= MOMENTUM_DAMPING_PER_FRAME;
+    if (Math.abs(velocityYaw) < MOMENTUM_STOP_RADIANS && Math.abs(velocityPitch) < MOMENTUM_STOP_RADIANS) {
+      momentumFrame = null;
+      return;
+    }
+    control.addYaw(velocityYaw);
+    control.addPitch(velocityPitch);
+    momentumFrame = requestAnimationFrame(coast);
+  };
 
   const distanceBetween = (): number | null => {
     if (pointers.size < 2) return null;
@@ -101,9 +128,16 @@ export function setUpTransformGestures(canvas: HTMLCanvasElement, control: Objec
   const forgetPointer = (event: PointerEvent): void => {
     pointers.delete(event.pointerId);
     pinchStartDistance = null;
+    if (pointers.size === 0 && (Math.abs(velocityYaw) > MOMENTUM_STOP_RADIANS || Math.abs(velocityPitch) > MOMENTUM_STOP_RADIANS)) {
+      stopMomentum();
+      momentumFrame = requestAnimationFrame(coast);
+    }
   };
 
   canvas.addEventListener('pointerdown', (event) => {
+    stopMomentum();
+    velocityYaw = 0;
+    velocityPitch = 0;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size === 2) {
       pinchStartDistance = distanceBetween();
@@ -115,11 +149,15 @@ export function setUpTransformGestures(canvas: HTMLCanvasElement, control: Objec
     if (!previous) return;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size >= 2) {
+      velocityYaw = 0;
+      velocityPitch = 0;
       const distance = distanceBetween();
       if (distance && pinchStartDistance) control.setScale(pinchStartScale * (distance / pinchStartDistance));
     } else {
-      control.addYaw((event.clientX - previous.x) * ROTATE_RADIANS_PER_PIXEL);
-      control.addPitch((event.clientY - previous.y) * ROTATE_RADIANS_PER_PIXEL);
+      velocityYaw = (event.clientX - previous.x) * ROTATE_RADIANS_PER_PIXEL;
+      velocityPitch = (event.clientY - previous.y) * ROTATE_RADIANS_PER_PIXEL;
+      control.addYaw(velocityYaw);
+      control.addPitch(velocityPitch);
     }
   });
   for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) canvas.addEventListener(type, forgetPointer);
