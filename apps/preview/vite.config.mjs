@@ -8,12 +8,13 @@ export default defineConfig({
     outDir: 'site',
     emptyOutDir: true,
     target: 'es2022',
-    // Multi-page build: 3D viewer, image-tracking AR test, WebXR room-placement test.
+    // Multi-page build: 3D viewer, image-tracking AR test, WebXR room-placement test, WebXR capability check.
     rolldownOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         ar: fileURLToPath(new URL('./ar.html', import.meta.url)),
         webxr: fileURLToPath(new URL('./webxr.html', import.meta.url)),
+        check: fileURLToPath(new URL('./check.html', import.meta.url)),
       },
     },
   },

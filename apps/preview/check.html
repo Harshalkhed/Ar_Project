@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebXR Support Check</title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #111; color: #e8e8e8; font: 16px/1.5 system-ui, sans-serif; }
+    main { max-width: 480px; margin: 0 auto; padding: 24px 16px; }
+    h1 { font-size: 20px; }
+    #result { padding: 14px 16px; border-radius: 8px; margin: 16px 0; font-weight: 600; }
+    #result[data-state="yes"] { background: #1f7a3f; }
+    #result[data-state="no"] { background: #7a1f1f; }
+    #result[data-state="checking"] { background: #333; }
+    .detail { color: #aaa; font-size: 14px; }
+    a { color: #6bb1ff; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>WebXR Support Check</h1>
+    <div id="result" data-state="checking">Checking…</div>
+    <p class="detail" id="detail"></p>
+    <p class="detail">If this says not supported: open the Play Store on this phone and search <strong>"Google Play Services for AR"</strong>. If it can't be installed/updated on this device, this phone's hardware or software build cannot run WebXR AR — there is no code fix for that. If it IS installed and up to date but this still fails, tell us — that's worth investigating.</p>
+    <p class="detail">Cross-check with the public reference demo: <a href="https://immersive-web.github.io/webxr-samples/ar-barebones.html">immersive-web.github.io/webxr-samples</a>.</p>
+  </main>
+  <script type="module" src="./src/check.ts"></script>
+</body>
+</html>
