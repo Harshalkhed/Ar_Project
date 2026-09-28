@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0",
+  "id": "floorplan-apartment",
+  "name": "Apartment floor plan",
+  "tracking": { "type": "webxr" },
+  "triggers": [
+    { "id": "trigger-place", "type": "webxr", "label": "Place", "sceneIds": ["scene-main"], "config": {} }
+  ],
+  "scenes": [
+    { "id": "scene-main", "name": "Main", "objectIds": ["object-apartment"], "interactions": [] }
+  ],
+  "objects": [
+    {
+      "id": "object-apartment",
+      "assetId": "asset-apartment",
+      "name": "Apartment floor plan",
+      "transform": {
+        "position": { "x": -4.88, "y": -1.98, "z": -0.48 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 0.01, "y": 0.01, "z": 0.01 }
+      },
+      "visible": false
+    }
+  ],
+  "assets": [
+    { "id": "asset-apartment", "kind": "model", "uri": "assets/apartment.glb" }
+  ],
+  "deployment": { "experienceId": "floorplan-apartment", "version": 1, "status": "draft", "runtimeVersion": "0.1.0" }
+}

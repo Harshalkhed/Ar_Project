@@ -29,7 +29,7 @@ async function main(): Promise<void> {
     throw new Error('This browser/device does not support WebXR immersive-ar (needs Android Chrome).');
   }
 
-  const url = new URL('projects/office-chair/project.json', location.href);
+  const url = new URL(new URLSearchParams(location.search).get('project') ?? 'projects/office-chair/project.json', location.href);
   const project: unknown = JSON.parse(new TextDecoder().decode(await fetchBytes(url)));
   const issues = validateProject(project);
   if (issues.length) throw new Error(`Invalid project: ${issues.map((i) => `${i.path}: ${i.message}`).join('; ')}`);
