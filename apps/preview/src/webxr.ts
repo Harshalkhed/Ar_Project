@@ -8,7 +8,7 @@ import { ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
 import { HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, WebGLRenderer } from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
-import { autoFitScale, createScaleControl, setUpScaleGestures } from './scale-control.js';
+import { autoFitScale, createObjectControl, setUpTransformGestures } from './scale-control.js';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#viewport');
 const scaleBadge = document.querySelector<HTMLDivElement>('#scale-badge');
@@ -47,11 +47,11 @@ async function main(): Promise<void> {
   for (const objectId of objectIds) renderer.setVisible(objectId, true);
   const autoScale = autoFitScale(renderer.scene);
   renderer.setAnchor(null);
-  const { setScale, getScale } = createScaleControl(renderer, objectIds, (scale) => {
+  const control = createObjectControl(renderer, objectIds, (scale) => {
     if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;
   });
-  setScale(autoScale); // Pinch/scroll still adjusts from here.
-  setUpScaleGestures(canvas, setScale, getScale);
+  control.setScale(autoScale); // Drag to spin, pinch/scroll to resize, from here.
+  setUpTransformGestures(canvas, control);
 
   const stage = new Scene();
   stage.add(new HemisphereLight(0xffffff, 0x444444, 2), renderer.scene); // PBR materials render black with no light.
@@ -80,7 +80,7 @@ async function main(): Promise<void> {
     renderer.setAnchor(Array.from(reticle.matrix.elements));
     placed = true;
     reticle.visible = false;
-    setStatus('Placed. Pinch or scroll to resize.');
+    setStatus('Placed. Drag to spin, pinch or scroll to resize.');
   });
   stage.add(controller);
 

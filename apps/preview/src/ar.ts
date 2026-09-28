@@ -9,7 +9,7 @@ import { BrowserImageTrackingEngine, ImageTrackingProvider } from '@internal-web
 import { HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { PoseSmoother } from './pose-smoother.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
-import { autoFitScale, createScaleControl, setUpScaleGestures } from './scale-control.js';
+import { autoFitScale, createObjectControl, setUpTransformGestures } from './scale-control.js';
 
 const DEFAULT_PROJECT = 'projects/office-chair/project.json';
 /** Weight given to each new tracked pose; lower is smoother but laggier. Tuned by eye, not measured. */
@@ -85,10 +85,10 @@ async function main(): Promise<void> {
   const autoScale = autoFitScale(renderer.scene);
   renderer.setAnchor(null); // Hidden until the target is found.
 
-  const { setScale, getScale } = createScaleControl(renderer, objectIds, (scale) => {
+  const control = createObjectControl(renderer, objectIds, (scale) => {
     if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;
   });
-  setScale(autoScale); // Pinch/scroll still adjusts from here.
+  control.setScale(autoScale); // Drag to spin, pinch/scroll to resize, from here.
 
   const smoother = new PoseSmoother(SMOOTHING_ALPHA);
 
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
       case 'target_found':
         applyPose(event.pose);
         applyProjection(event.projection);
-        setStatus('Found — place it, then pinch or scroll to resize. Reset to track again.', 'tracking');
+        setStatus('Found — drag to spin, pinch or scroll to resize. Reset to track again.', 'tracking');
         break;
       case 'pose_updated':
         applyPose(event.pose);
@@ -148,10 +148,11 @@ async function main(): Promise<void> {
   resetButton?.addEventListener('click', () => {
     renderer.setAnchor(null);
     smoother.reset();
-    setScale(1);
+    control.setScale(autoScale);
+    control.resetYaw();
     setStatus('Point the camera at the target.');
   });
-  setUpScaleGestures(canvas, setScale, getScale);
+  setUpTransformGestures(canvas, control);
 
   gl.setAnimationLoop(() => gl.render(stage, camera));
   await runtime.start(document);
