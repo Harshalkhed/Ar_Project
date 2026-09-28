@@ -6,7 +6,7 @@ import { RendererError, ThreeRenderer, type AssetReader } from '@internal-webar/
 import { RuntimeCore, RuntimeError, type CameraProjection, type RuntimeEvent, type TargetPose } from '@internal-webar/runtime-core';
 import { TrackingError } from '@internal-webar/tracking';
 import { BrowserImageTrackingEngine, ImageTrackingProvider } from '@internal-webar/tracking-image';
-import { PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { PoseSmoother } from './pose-smoother.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
 import { scaledTransform } from './transform-utils.js';
@@ -104,7 +104,7 @@ async function main(): Promise<void> {
   const smoother = new PoseSmoother(SMOOTHING_ALPHA);
 
   const stage = new Scene();
-  stage.add(renderer.scene);
+  stage.add(new HemisphereLight(0xffffff, 0x444444, 2), renderer.scene); // PBR materials render black with no light.
   const gl = new WebGLRenderer({ canvas, alpha: true, antialias: true });
   gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   // Camera stays at the origin with no transform: the tracker's pose is already camera-relative

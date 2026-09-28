@@ -5,7 +5,7 @@
 // uses (see Architecture.md's WebXR scoping entry); the pre-tap reticle stays outside either way.
 import { validateProject, type ProjectDocument } from '@internal-webar/project-schema';
 import { ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
-import { Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, WebGLRenderer } from 'three';
+import { HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, WebGLRenderer } from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
 
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   renderer.setAnchor(null);
 
   const stage = new Scene();
-  stage.add(renderer.scene);
+  stage.add(new HemisphereLight(0xffffff, 0x444444, 2), renderer.scene); // PBR materials render black with no light.
   const reticle = new Mesh(new RingGeometry(0.08, 0.1, 32).rotateX(-Math.PI / 2), new MeshBasicMaterial({ color: 0x2a6df4 }));
   reticle.matrixAutoUpdate = false;
   reticle.visible = false;
@@ -59,10 +59,13 @@ async function main(): Promise<void> {
 
   let hitTestSource: XRHitTestSource | null = null;
   let hitTestSourceRequested = false;
+  let placed = false;
   const controller = gl.xr.getController(0);
   controller.addEventListener('select', () => {
-    if (!reticle.visible) return;
+    if (!reticle.visible || placed) return;
     renderer.setAnchor(Array.from(reticle.matrix.elements));
+    placed = true;
+    reticle.visible = false;
     setStatus('Placed. Move around to check it stays put.');
   });
   stage.add(controller);
@@ -81,7 +84,7 @@ async function main(): Promise<void> {
         });
         hitTestSourceRequested = true;
       }
-      if (hitTestSource && referenceSpace) {
+      if (hitTestSource && referenceSpace && !placed) {
         const hits = frame.getHitTestResults(hitTestSource);
         if (hits.length > 0) {
           const pose = hits[0].getPose(referenceSpace);
