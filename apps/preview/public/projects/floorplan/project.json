@@ -15,7 +15,7 @@
       "assetId": "asset-apartment",
       "name": "Apartment floor plan",
       "transform": {
-        "position": { "x": -4.88, "y": -1.98, "z": -0.48 },
+        "position": { "x": -4.88235, "y": 0.1262, "z": 1.9836 },
         "rotation": { "x": 0, "y": 0, "z": 0 },
         "scale": { "x": 0.01, "y": 0.01, "z": 0.01 }
       },
