@@ -88,7 +88,7 @@ async function main(): Promise<void> {
   const control = createObjectControl(renderer, objectIds, (scale) => {
     if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;
   });
-  control.setScale(autoScale); // Drag to spin, pinch/scroll to resize, from here.
+  control.setScale(autoScale); // Drag to rotate, pinch/scroll to resize, from here.
 
   const smoother = new PoseSmoother(SMOOTHING_ALPHA);
 
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
       case 'target_found':
         applyPose(event.pose);
         applyProjection(event.projection);
-        setStatus('Found — drag to spin, pinch or scroll to resize. Reset to track again.', 'tracking');
+        setStatus('Found — drag to rotate, pinch or scroll to resize. Reset to track again.', 'tracking');
         break;
       case 'pose_updated':
         applyPose(event.pose);
@@ -149,7 +149,7 @@ async function main(): Promise<void> {
     renderer.setAnchor(null);
     smoother.reset();
     control.setScale(autoScale);
-    control.resetYaw();
+    control.resetOrientation();
     setStatus('Point the camera at the target.');
   });
   setUpTransformGestures(canvas, control);

@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   const control = createObjectControl(renderer, objectIds, (scale) => {
     if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;
   });
-  control.setScale(autoScale); // Drag to spin, pinch/scroll to resize, from here.
+  control.setScale(autoScale); // Drag to rotate, pinch/scroll to resize, from here.
   setUpTransformGestures(canvas, control);
 
   const stage = new Scene();
@@ -80,7 +80,7 @@ async function main(): Promise<void> {
     renderer.setAnchor(Array.from(reticle.matrix.elements));
     placed = true;
     reticle.visible = false;
-    setStatus('Placed. Drag to spin, pinch or scroll to resize.');
+    setStatus('Placed. Drag to rotate, pinch or scroll to resize.');
   });
   stage.add(controller);
 
