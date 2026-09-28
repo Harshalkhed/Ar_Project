@@ -1,9 +1,16 @@
 import type { RendererAdapter } from '@internal-webar/renderer';
 import type { Transform } from '@internal-webar/project-schema';
+import { Box3, Vector3, type Object3D } from 'three';
 import { scaledTransform } from './transform-utils.js';
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 10;
+
+/** Scale factor that makes `root`'s longest side about `targetSize` metres — most AR viewers auto-fit like this on placement instead of leaving people to pinch every project to a usable size by hand. */
+export function autoFitScale(root: Object3D, targetSize = 1): number {
+  const size = new Box3().setFromObject(root).getSize(new Vector3());
+  return targetSize / Math.max(size.x, size.y, size.z, 1e-6);
+}
 
 /**
  * Scales a set of already-loaded objects from their authored (unscaled) transform, so repeated

@@ -5,10 +5,10 @@
 // uses (see Architecture.md's WebXR scoping entry); the pre-tap reticle stays outside either way.
 import { validateProject, type ProjectDocument } from '@internal-webar/project-schema';
 import { ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
-import { Box3, HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, Vector3, WebGLRenderer } from 'three';
+import { HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, WebGLRenderer } from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
-import { createScaleControl, setUpScaleGestures } from './scale-control.js';
+import { autoFitScale, createScaleControl, setUpScaleGestures } from './scale-control.js';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#viewport');
 const scaleBadge = document.querySelector<HTMLDivElement>('#scale-badge');
@@ -45,11 +45,7 @@ async function main(): Promise<void> {
   const readAsset: AssetReader = (uri) => fetchBytes(new URL(uri, url));
   await renderer.loadScene(document, sceneId, readAsset);
   for (const objectId of objectIds) renderer.setVisible(objectId, true);
-  // Auto-fit on placement, like most AR viewers, so people are not stuck pinching every project to a
-  // usable size by hand: scale the loaded model so its longest side is about TARGET_SIZE metres.
-  const TARGET_SIZE = 1;
-  const loadedSize = new Box3().setFromObject(renderer.scene).getSize(new Vector3());
-  const autoScale = TARGET_SIZE / Math.max(loadedSize.x, loadedSize.y, loadedSize.z, 1e-6);
+  const autoScale = autoFitScale(renderer.scene);
   renderer.setAnchor(null);
   const { setScale, getScale } = createScaleControl(renderer, objectIds, (scale) => {
     if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;

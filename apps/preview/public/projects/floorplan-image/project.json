@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "id": "floorplan-apartment-image",
+  "name": "Apartment floor plan (image tracking)",
+  "tracking": { "type": "image" },
+  "triggers": [
+    { "id": "trigger-poster", "type": "image", "label": "Poster", "sceneIds": ["scene-main"], "config": { "imageAssetId": "asset-poster" } }
+  ],
+  "scenes": [
+    {
+      "id": "scene-main",
+      "name": "Main",
+      "objectIds": ["object-apartment"],
+      "interactions": [
+        { "id": "interaction-reveal", "event": "target_found", "action": "show_object", "targetId": "object-apartment" }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "object-apartment",
+      "assetId": "asset-apartment",
+      "name": "Apartment floor plan",
+      "transform": {
+        "position": { "x": -4.88235, "y": 0.1262, "z": 1.9836 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 0.01, "y": 0.01, "z": 0.01 }
+      },
+      "visible": false
+    }
+  ],
+  "assets": [
+    { "id": "asset-poster", "kind": "image", "uri": "assets/target.png" },
+    { "id": "asset-apartment", "kind": "model", "uri": "../floorplan/assets/apartment.glb" }
+  ],
+  "deployment": { "experienceId": "floorplan-apartment-image", "version": 1, "status": "draft", "runtimeVersion": "0.1.0" }
+}

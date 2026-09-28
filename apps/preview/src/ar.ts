@@ -9,7 +9,7 @@ import { BrowserImageTrackingEngine, ImageTrackingProvider } from '@internal-web
 import { HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { PoseSmoother } from './pose-smoother.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
-import { createScaleControl, setUpScaleGestures } from './scale-control.js';
+import { autoFitScale, createScaleControl, setUpScaleGestures } from './scale-control.js';
 
 const DEFAULT_PROJECT = 'projects/office-chair/project.json';
 /** Weight given to each new tracked pose; lower is smoother but laggier. Tuned by eye, not measured. */
@@ -82,11 +82,13 @@ async function main(): Promise<void> {
   const scene = document.scenes.find((entry) => entry.id === sceneId);
   const objectIds = scene?.objectIds ?? [];
   for (const objectId of objectIds) renderer.setVisible(objectId, true);
+  const autoScale = autoFitScale(renderer.scene);
   renderer.setAnchor(null); // Hidden until the target is found.
 
   const { setScale, getScale } = createScaleControl(renderer, objectIds, (scale) => {
     if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;
   });
+  setScale(autoScale); // Pinch/scroll still adjusts from here.
 
   const smoother = new PoseSmoother(SMOOTHING_ALPHA);
 
