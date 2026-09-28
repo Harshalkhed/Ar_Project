@@ -49,6 +49,7 @@ async function main(): Promise<void> {
   const { setScale, getScale } = createScaleControl(renderer, objectIds, (scale) => {
     if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;
   });
+  setScale(0.4); // Starts tabletop-sized instead of full scale; pinch/scroll still adjusts from here.
   setUpScaleGestures(canvas, setScale, getScale);
 
   const stage = new Scene();
