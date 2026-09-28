@@ -37,11 +37,21 @@ export function createObjectControl(renderer: RendererAdapter, objectIds: readon
     const spin = new Quaternion().setFromAxisAngle(UP, yaw);
     for (const [objectId, base] of baseTransforms) {
       const scaled = scaledTransform(base, scaleFactor);
+      // A non-zero authored position is a pivot offset that recenters the model onto the anchor for
+      // one specific orientation (see scaledTransform's own comment for the same issue with scale).
+      // Spinning the object changes that orientation, so the offset must spin too -- otherwise the
+      // model's centroid swings out along an arc around the anchor as you drag, instead of the model
+      // spinning in place. Confirmed on a real device: it "revolved" instead of turning on the spot.
+      const position = new Vector3(scaled.position.x, scaled.position.y, scaled.position.z).applyQuaternion(spin);
       // Quaternion composition handles any authored rotation correctly (e.g. a model tipped 90°
       // to face the camera) without having to reason about Euler-angle order by hand.
       const authored = new Quaternion().setFromEuler(new Euler(base.rotation.x, base.rotation.y, base.rotation.z));
       const rotation = new Euler().setFromQuaternion(spin.clone().multiply(authored));
-      renderer.applyTransform(objectId, { ...scaled, rotation: { x: rotation.x, y: rotation.y, z: rotation.z } });
+      renderer.applyTransform(objectId, {
+        position: { x: position.x, y: position.y, z: position.z },
+        rotation: { x: rotation.x, y: rotation.y, z: rotation.z },
+        scale: scaled.scale,
+      });
     }
     onScaleChange?.(scaleFactor);
   };
