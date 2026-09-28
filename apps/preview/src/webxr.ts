@@ -8,8 +8,10 @@ import { ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
 import { HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, WebGLRenderer } from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
+import { createScaleControl, setUpScaleGestures } from './scale-control.js';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#viewport');
+const scaleBadge = document.querySelector<HTMLDivElement>('#scale-badge');
 const statusElement = document.querySelector<HTMLParagraphElement>('#status');
 const setStatus = (message: string, isError = false): void => {
   if (!statusElement) return;
@@ -38,11 +40,16 @@ async function main(): Promise<void> {
   if (!sceneId) throw new Error('Project has no scene.');
   const document = withAbsoluteAssetUris(raw, url);
 
+  const objectIds = document.scenes.find((s) => s.id === sceneId)?.objectIds ?? [];
   const renderer = new ThreeRenderer();
   const readAsset: AssetReader = (uri) => fetchBytes(new URL(uri, url));
   await renderer.loadScene(document, sceneId, readAsset);
-  for (const objectId of document.scenes.find((s) => s.id === sceneId)?.objectIds ?? []) renderer.setVisible(objectId, true);
+  for (const objectId of objectIds) renderer.setVisible(objectId, true);
   renderer.setAnchor(null);
+  const { setScale, getScale } = createScaleControl(renderer, objectIds, (scale) => {
+    if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;
+  });
+  setUpScaleGestures(canvas, setScale, getScale);
 
   const stage = new Scene();
   stage.add(new HemisphereLight(0xffffff, 0x444444, 2), renderer.scene); // PBR materials render black with no light.
@@ -66,7 +73,7 @@ async function main(): Promise<void> {
     renderer.setAnchor(Array.from(reticle.matrix.elements));
     placed = true;
     reticle.visible = false;
-    setStatus('Placed. Move around to check it stays put.');
+    setStatus('Placed. Pinch or scroll to resize.');
   });
   stage.add(controller);
 

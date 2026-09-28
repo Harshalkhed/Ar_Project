@@ -1,7 +1,7 @@
 // Real camera image-tracking test page. Requires HTTPS (or localhost) and a rear camera.
 // Camera passthrough (this file's own <video>) is a rendering/display concern, kept separate from
 // the tracking engine's own internal camera capture (BrowserImageTrackingEngine) — see Architecture.md.
-import { validateProject, type ProjectDocument, type Transform } from '@internal-webar/project-schema';
+import { validateProject, type ProjectDocument } from '@internal-webar/project-schema';
 import { RendererError, ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
 import { RuntimeCore, RuntimeError, type CameraProjection, type RuntimeEvent, type TargetPose } from '@internal-webar/runtime-core';
 import { TrackingError } from '@internal-webar/tracking';
@@ -9,13 +9,11 @@ import { BrowserImageTrackingEngine, ImageTrackingProvider } from '@internal-web
 import { HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
 import { PoseSmoother } from './pose-smoother.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
-import { scaledTransform } from './transform-utils.js';
+import { createScaleControl, setUpScaleGestures } from './scale-control.js';
 
 const DEFAULT_PROJECT = 'projects/office-chair/project.json';
 /** Weight given to each new tracked pose; lower is smoother but laggier. Tuned by eye, not measured. */
 const SMOOTHING_ALPHA = 0.25;
-const MIN_SCALE = 0.1;
-const MAX_SCALE = 10;
 
 const statusElement = document.querySelector<HTMLParagraphElement>('#status');
 const canvas = document.querySelector<HTMLCanvasElement>('#viewport');
@@ -86,20 +84,9 @@ async function main(): Promise<void> {
   for (const objectId of objectIds) renderer.setVisible(objectId, true);
   renderer.setAnchor(null); // Hidden until the target is found.
 
-  // Authored (unscaled) transforms, captured once, so repeated pinch/scroll always scales from the
-  // original size rather than compounding rounding error onto whatever the last scale left behind.
-  const baseTransforms = new Map<string, Transform>();
-  for (const objectId of objectIds) {
-    const transform = renderer.getObjectState(objectId)?.transform;
-    if (transform) baseTransforms.set(objectId, transform);
-  }
-  let scaleFactor = 1;
-  const setScale = (value: number): void => {
-    scaleFactor = Math.min(MAX_SCALE, Math.max(MIN_SCALE, value));
-    for (const [objectId, base] of baseTransforms) renderer.applyTransform(objectId, scaledTransform(base, scaleFactor));
-    if (scaleBadge) scaleBadge.textContent = `${Math.round(scaleFactor * 100)}%`;
-  };
-  setScale(1);
+  const { setScale, getScale } = createScaleControl(renderer, objectIds, (scale) => {
+    if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;
+  });
 
   const smoother = new PoseSmoother(SMOOTHING_ALPHA);
 
@@ -162,50 +149,10 @@ async function main(): Promise<void> {
     setScale(1);
     setStatus('Point the camera at the target.');
   });
-  setUpScaleGestures(canvas, setScale, () => scaleFactor);
+  setUpScaleGestures(canvas, setScale, getScale);
 
   gl.setAnimationLoop(() => gl.render(stage, camera));
   await runtime.start(document);
-}
-
-/** Two-finger pinch (touch) and mouse-wheel (desktop) resize the placed content. */
-function setUpScaleGestures(canvas: HTMLCanvasElement, setScale: (value: number) => void, getScale: () => number): void {
-  const pointers = new Map<number, { x: number; y: number }>();
-  let pinchStartDistance: number | null = null;
-  let pinchStartScale = 1;
-
-  const distanceBetween = (): number | null => {
-    if (pointers.size < 2) return null;
-    const [a, b] = [...pointers.values()];
-    return Math.hypot(a.x - b.x, a.y - b.y);
-  };
-  const forgetPointer = (event: PointerEvent): void => {
-    pointers.delete(event.pointerId);
-    pinchStartDistance = null;
-  };
-
-  canvas.addEventListener('pointerdown', (event) => {
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (pointers.size === 2) {
-      pinchStartDistance = distanceBetween();
-      pinchStartScale = getScale();
-    }
-  });
-  canvas.addEventListener('pointermove', (event) => {
-    if (!pointers.has(event.pointerId)) return;
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    const distance = distanceBetween();
-    if (distance && pinchStartDistance) setScale(pinchStartScale * (distance / pinchStartDistance));
-  });
-  for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) canvas.addEventListener(type, forgetPointer);
-  canvas.addEventListener(
-    'wheel',
-    (event) => {
-      event.preventDefault();
-      setScale(getScale() * (event.deltaY < 0 ? 1.05 : 1 / 1.05));
-    },
-    { passive: false },
-  );
 }
 
 startButton?.addEventListener('click', () => {
