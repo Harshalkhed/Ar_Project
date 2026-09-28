@@ -62,7 +62,12 @@ async function main(): Promise<void> {
   gl.xr.enabled = true;
   // Three.js patches this camera's pose from the XR headset/phone each frame during a session.
   const camera = new PerspectiveCamera();
-  window.document.body.appendChild(ARButton.createButton(gl, { requiredFeatures: ['hit-test'] }));
+  // Without an explicit domOverlay root, ARButton creates its own near-empty overlay div (just its
+  // close button) and only THAT subtree gets real pointer/touch events during the session -- our
+  // canvas, status text and scale badge sat outside it and were silently non-interactive/hidden.
+  window.document.body.appendChild(
+    ARButton.createButton(gl, { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: window.document.body } }),
+  );
 
   let hitTestSource: XRHitTestSource | null = null;
   let hitTestSourceRequested = false;
