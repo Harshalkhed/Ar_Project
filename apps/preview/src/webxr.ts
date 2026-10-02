@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   const forceQuickLook = new URLSearchParams(location.search).has('quicklook');
   const webxrSupported = !forceQuickLook && Boolean(navigator.xr) && (await navigator.xr!.isSessionSupported('immersive-ar'));
   if (!webxrSupported && !forceQuickLook && !supportsQuickLook()) {
-    throw new Error('This browser/device supports neither WebXR AR (Android Chrome) nor AR Quick Look (iPhone/iPad Safari).');
+    throw new Error('This browser/device supports neither WebXR AR (Android Chrome) nor AR Quick Look (iPhone/iPad Safari). In-app browsers (Instagram, Slack, etc.) usually block both -- open this link in Safari or Chrome.');
   }
 
   const url = new URL(new URLSearchParams(location.search).get('project') ?? 'projects/office-chair/project.json', location.href);
@@ -157,7 +157,7 @@ function startQuickLook(canvas: HTMLCanvasElement, renderer: ThreeRenderer, cont
   gl.setAnimationLoop(() => gl.render(stage, camera));
 
   const slot = document.createElement('div');
-  slot.style.cssText = 'position:fixed;left:0;right:0;bottom:64px;display:flex;justify-content:center;z-index:3';
+  slot.style.cssText = 'position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));display:flex;justify-content:center;z-index:3';
   const prepare = document.createElement('button');
   prepare.textContent = 'Prepare AR view';
   prepare.style.cssText = 'font-size:18px;padding:14px 28px;border-radius:10px;border:none;background:#2a6df4;color:#fff';
