@@ -163,7 +163,7 @@ function startQuickLook(canvas: HTMLCanvasElement, renderer: ThreeRenderer, cont
   prepare.style.cssText = 'font-size:18px;padding:14px 28px;border-radius:10px;border:none;background:#2a6df4;color:#fff';
   prepare.addEventListener('click', async () => {
     prepare.disabled = true;
-    setStatus('Preparing the AR model -- this can take around ten seconds…');
+    setStatus('Preparing the AR model -- a few seconds, up to a minute for large models…');
     try {
       control.resetOrientation(); // place it upright at the size you chose, not mid-spin
       slot.replaceChildren(createQuickLookLink(await buildUsdzUrl(renderer.scene)));

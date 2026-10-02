@@ -47,10 +47,20 @@ Vercel builds and serves the site using `vercel.json`. Deploy from the repositor
 
 This is **image-anchored** placement: content stays attached to wherever the target currently is on screen, not fixed at a point in the room. Regenerate a different target image with `node scripts/generate-target-image.mjs <out.png> [width] [height] [seed]`.
 
+## Room placement by platform (`webxr.html`)
+
+| Device | What happens | Notes |
+|---|---|---|
+| Android + Chrome + ARCore | WebXR hit-test placement; the model stays fixed in the room. Drag to rotate/tilt (with momentum), pinch/scroll to resize. | Needs Google Play Services for AR. Check a device at `check.html`. |
+| iPhone / iPad Safari | Same drag/pinch preview, then **Prepare AR view** → **View in your room (AR)** hands off to Apple's AR Quick Look (native placement, pinch, rotate). | iOS has no WebXR. Quick Look is Apple's own viewer, not a vendor SDK. |
+| Anything else | A visible "supports neither" message. | |
+
+iOS test: open `https://<site>/webxr.html?project=projects/floorplan/project.json` in **Safari** (Chrome on iPhone is the same WebKit engine; Quick Look works from Safari). Tap **Prepare AR view**, wait for "Ready", tap **View in your room (AR)**. The export bakes in the current size (the `%` badge) at an upright orientation; heavy models take longer (office chair ≈ 1 s / 21 MB; floorplan ≈ 30 s / 50 MB on a desktop). `?quicklook` forces this path on any browser to test the preview and export without an iPhone. Image tracking (`ar.html`) already works on iPhone/iPad.
+
 ## Next milestone
 
 Two tracks, per the two-tier decision in `Architecture.md`:
 
-1. **Room-fixed placement (Android/Chrome only — WebXR, iOS Safari cannot do this without a paid SDK).** A new `TrackingProvider` using WebXR hit-test and anchors; `'webxr'` is already a valid schema `tracking.type`. Not started; needs an Android device to verify.
+1. **Room-fixed placement behind `TrackingProvider`** (it works today as a standalone page on Android, and via Quick Look on iOS). `'webxr'` is already a valid schema `tracking.type`.
 2. **Mobile performance for the existing image-tracking engine.** Move detection into a Web Worker, add frame-to-frame (optical flow) tracking between full re-detections, and calibrate or better-approximate camera intrinsics. See the "known limitations" list in `Architecture.md`'s in-house-engine decision entry.
 
