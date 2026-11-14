@@ -7,7 +7,7 @@ import { Mesh, Texture, type Material, type Object3D } from 'three';
  * native AR viewer (surface detection, placement, pinch-scale and rotate are all built in). This is
  * Apple's documented feature check for it.
  */
-export const supportsQuickLook = (): boolean => document.createElement('a').relList?.supports?.('ar') === true;
+export { supportsQuickLook } from './quick-look-support.js';
 
 /**
  * Exports `root` (as currently scaled/oriented) to USDZ bytes. Textures are capped at 1024px so big

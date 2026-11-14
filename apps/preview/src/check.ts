@@ -1,4 +1,4 @@
-// Standalone WebXR capability check: no project, no GLB, just the same test webxr.ts runs before
+// Standalone AR capability check: no project, no GLB, just the same test webxr.ts runs before
 // doing anything else, so a device's support can be confirmed without loading the full experience.
 const result = document.querySelector<HTMLDivElement>('#result');
 const detail = document.querySelector<HTMLParagraphElement>('#detail');
@@ -12,14 +12,12 @@ function report(state: 'yes' | 'no', message: string, extra = ''): void {
   console.log(message);
 }
 
-// Apple's documented feature check for AR Quick Look (iPhone/iPad Safari), inlined so this tiny page
-// does not bundle the USDZ exporter that quick-look.ts pulls in.
-const hasQuickLook = (): boolean => document.createElement('a').relList?.supports?.('ar') === true;
+import { supportsQuickLook as hasQuickLook } from './quick-look-support.js';
 
 async function main(): Promise<void> {
   if (!isSecureContext) return report('no', 'Not a secure context (needs HTTPS or localhost).');
   if (!navigator.xr) {
-    if (hasQuickLook()) return report('yes', 'No WebXR here, but AR Quick Look is available, which webxr.html uses automatically on iPhone/iPad.', navigator.userAgent);
+    if (hasQuickLook()) return report('yes', 'No WebXR here, but AR Quick Look is available (Safari, Chrome, Edge or Firefox on iPhone/iPad), which webxr.html uses automatically.', navigator.userAgent);
     return report('no', 'navigator.xr is not exposed by this browser.', navigator.userAgent);
   }
   try {
