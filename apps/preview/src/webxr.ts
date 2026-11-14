@@ -11,7 +11,7 @@ import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { offerOpenInBrowser } from './in-app-browser.js';
 import { createKtx2Loader } from './ktx2.js';
 import { buildUsdzUrl, createQuickLookLink, findPrebakedUsdz, supportsQuickLook } from './quick-look.js';
-import { autoFitScale, createObjectControl, setUpTransformGestures, type ObjectControl } from './scale-control.js';
+import { createObjectControl, setUpTransformGestures, type ObjectControl } from './scale-control.js';
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -57,13 +57,12 @@ async function main(): Promise<void> {
   const readAsset: AssetReader = (uri) => fetchBytes(new URL(uri, url));
   await renderer.loadScene(document, sceneId, readAsset);
   for (const objectId of objectIds) renderer.setVisible(objectId, true);
-  const autoScale = autoFitScale(renderer.scene);
   renderer.setAnchor(null);
-  const control = createObjectControl(renderer, objectIds, (scale) => {
-    if (scaleBadge) scaleBadge.textContent = `${Math.round(scale * 100)}%`;
-  });
-  control.setScale(autoScale); // Drag to rotate, pinch/scroll to resize, from here.
-  setUpTransformGestures(canvas, control);
+  // Room placement shows the object at its real size (the project's own transform, in metres): no
+  // auto-fit and no pinch-to-resize. Dragging only spins it; it stays upright on the floor.
+  const control = createObjectControl(renderer, objectIds);
+  if (scaleBadge) scaleBadge.textContent = 'Real size';
+  setUpTransformGestures(canvas, control, { scale: false, tilt: false });
   if (!webxrSupported) return startQuickLook(gl, renderer, control, await findPrebakedUsdz(url));
 
   const stage = new Scene();
@@ -85,14 +84,23 @@ async function main(): Promise<void> {
 
   let hitTestSource: XRHitTestSource | null = null;
   let hitTestSourceRequested = false;
-  let placed = false;
+  // A screen touch in WebXR fires `select` when the finger lifts, including at the end of a drag
+  // that was spinning the object. Only a tap (little movement) places or moves the object.
+  const TAP_MAX_MOVE_PX = 12;
+  let touchStart: { x: number; y: number } | null = null;
+  let touchMoved = 0;
+  canvas.addEventListener('pointerdown', (event) => {
+    touchStart = { x: event.clientX, y: event.clientY };
+    touchMoved = 0;
+  });
+  canvas.addEventListener('pointermove', (event) => {
+    if (touchStart) touchMoved = Math.max(touchMoved, Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y));
+  });
   const controller = gl.xr.getController(0);
   controller.addEventListener('select', () => {
-    if (!reticle.visible || placed) return;
+    if (!reticle.visible || touchMoved > TAP_MAX_MOVE_PX) return;
     renderer.setAnchor(Array.from(reticle.matrix.elements));
-    placed = true;
-    reticle.visible = false;
-    setStatus('Placed. Drag to rotate, pinch or scroll to resize.');
+    setStatus('Placed at real size. Tap another spot on the floor to move it; drag to turn it.');
   });
   stage.add(controller);
 
@@ -110,7 +118,8 @@ async function main(): Promise<void> {
         });
         hitTestSourceRequested = true;
       }
-      if (hitTestSource && referenceSpace && !placed) {
+      // Keep hit-testing after placement: the reticle shows where a tap would move the object.
+      if (hitTestSource && referenceSpace) {
         const hits = frame.getHitTestResults(hitTestSource);
         if (hits.length > 0) {
           const pose = hits[0].getPose(referenceSpace);
@@ -126,7 +135,7 @@ async function main(): Promise<void> {
     gl.render(stage, camera);
   });
 
-  setStatus('Tap "Start AR", point at a flat surface, tap the screen to place.');
+  setStatus('Tap "Start AR", point at the floor, tap the screen to place it at real size.');
 }
 
 // In an in-app browser neither WebXR nor Quick Look usually works; offer the real browser first.
@@ -136,7 +145,7 @@ offerOpenInBrowser().then(main).catch((error: unknown) => {
 });
 
 /**
- * iOS fallback: a Sketchfab-style preview (drag/pinch still work) plus a hand-off to AR Quick Look.
+ * iOS fallback: a Sketchfab-style preview (drag to turn) plus a hand-off to AR Quick Look at real size.
  * With a pre-baked USDZ (scripts/build-assets.mjs) the AR button is ready at once; without one, the
  * scene is exported on the phone first (two taps, up to ~30 s for big models).
  */
@@ -167,9 +176,13 @@ function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: Obj
   const slot = document.createElement('div');
   slot.style.cssText = 'position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));display:flex;justify-content:center;z-index:3';
   document.body.appendChild(slot);
+  // Keep the button just above the status text, which wraps to several lines on a narrow phone.
+  if (statusElement) {
+    new ResizeObserver(() => (slot.style.bottom = `calc(${statusElement.offsetHeight + 24}px + env(safe-area-inset-bottom))`)).observe(statusElement);
+  }
   if (prebakedUsdz) {
     slot.appendChild(createQuickLookLink(prebakedUsdz));
-    setStatus('Tap "View in your room (AR)", then point at the floor or a table. Pinch in AR to resize.');
+    setStatus('Tap "View in your room (AR)", then point at the floor. It appears at real size; drag to move it, twist to turn it.');
     return;
   }
   const prepare = document.createElement('button');
@@ -179,7 +192,7 @@ function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: Obj
     prepare.disabled = true;
     setStatus('Preparing the AR model -- a few seconds, up to a minute for large models…');
     try {
-      control.resetOrientation(); // place it upright at the size you chose, not mid-spin
+      control.resetOrientation(); // export upright at real size, not mid-spin
       slot.replaceChildren(createQuickLookLink(await buildUsdzUrl(renderer.scene)));
       setStatus('Ready. Tap "View in your room (AR)", then point at the floor or a table.');
     } catch (error) {
@@ -188,5 +201,5 @@ function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: Obj
     }
   });
   slot.appendChild(prepare);
-  setStatus('Drag to rotate, pinch to resize, then tap "Prepare AR view" to place it in your room.');
+  setStatus('Drag to turn it, then tap "Prepare AR view" to place it in your room at real size.');
 }

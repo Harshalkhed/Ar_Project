@@ -3,12 +3,18 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { isPrebakedUsdzResponse, preferJpegTextures } from '../apps/preview/dist/quick-look.js';
+import { isPrebakedUsdzResponse, preferJpegTextures, quickLookHref } from '../apps/preview/dist/quick-look.js';
 
 // three is the preview app's dependency; load the same ES module file quick-look.js imports (require()
 // would resolve three's CommonJS build instead) so instanceof checks hold.
 const threeCjs = createRequire(new URL('../apps/preview/package.json', import.meta.url)).resolve('three');
 const { Group, Mesh, MeshStandardMaterial, BoxGeometry, Texture } = await import(pathToFileURL(join(dirname(threeCjs), 'three.module.js')).href);
+
+test('Quick Look links turn off pinch-to-resize so the object stays at real size', () => {
+  assert.equal(quickLookHref('https://ar.example.com/projects/office-chair/quicklook.usdz'), 'https://ar.example.com/projects/office-chair/quicklook.usdz#allowsContentScaling=0');
+  assert.equal(quickLookHref('blob:https://ar.example.com/1234'), 'blob:https://ar.example.com/1234#allowsContentScaling=0');
+  assert.equal(quickLookHref('https://ar.example.com/a.usdz#old'), 'https://ar.example.com/a.usdz#allowsContentScaling=0');
+});
 
 test('a pre-baked USDZ exists only for a successful, non-HTML response', () => {
   assert.equal(isPrebakedUsdzResponse(true, 'model/vnd.usdz+zip'), true);

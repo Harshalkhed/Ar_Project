@@ -93,9 +93,12 @@ const MOMENTUM_STOP_RADIANS = 0.0005;
  * One-finger drag orbits the object (Sketchfab-style: horizontal = spin, vertical = tilt), and
  * keeps coasting with decaying momentum after release, like flicking a Sketchfab embed, instead of
  * stopping dead the instant a finger lifts. Two-finger pinch (touch) and mouse-wheel (desktop)
- * resize it.
+ * resize it. Room placement passes `{ scale: false, tilt: false }`: the object stays at real size and
+ * upright, and dragging only spins it.
  */
-export function setUpTransformGestures(canvas: HTMLCanvasElement, control: ObjectControl): void {
+export function setUpTransformGestures(canvas: HTMLCanvasElement, control: ObjectControl, allow: { scale?: boolean; tilt?: boolean } = {}): void {
+  const canScale = allow.scale ?? true;
+  const canTilt = allow.tilt ?? true;
   const ROTATE_RADIANS_PER_PIXEL = 0.01;
   const pointers = new Map<number, { x: number; y: number }>();
   let pinchStartDistance: number | null = null;
@@ -152,10 +155,10 @@ export function setUpTransformGestures(canvas: HTMLCanvasElement, control: Objec
       velocityYaw = 0;
       velocityPitch = 0;
       const distance = distanceBetween();
-      if (distance && pinchStartDistance) control.setScale(pinchStartScale * (distance / pinchStartDistance));
+      if (canScale && distance && pinchStartDistance) control.setScale(pinchStartScale * (distance / pinchStartDistance));
     } else {
       velocityYaw = (event.clientX - previous.x) * ROTATE_RADIANS_PER_PIXEL;
-      velocityPitch = (event.clientY - previous.y) * ROTATE_RADIANS_PER_PIXEL;
+      velocityPitch = canTilt ? (event.clientY - previous.y) * ROTATE_RADIANS_PER_PIXEL : 0;
       control.addYaw(velocityYaw);
       control.addPitch(velocityPitch);
     }
@@ -165,6 +168,7 @@ export function setUpTransformGestures(canvas: HTMLCanvasElement, control: Objec
     'wheel',
     (event) => {
       event.preventDefault();
+      if (!canScale) return;
       control.setScale(control.getScale() * (event.deltaY < 0 ? 1.05 : 1 / 1.05));
     },
     { passive: false },

@@ -3,7 +3,7 @@
 import { validateProject, type ProjectDocument } from '@internal-webar/project-schema';
 import { ThreeRenderer } from '@internal-webar/renderer';
 import { buildUsdzBytes } from './quick-look.js';
-import { autoFitScale, createObjectControl } from './scale-control.js';
+import { createObjectControl } from './scale-control.js';
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -15,7 +15,7 @@ async function fetchBytes(url: URL): Promise<Uint8Array> {
 
 /**
  * The USDZ webxr.html would export on an iPhone for this project before the person changes anything:
- * first scene, every object visible, auto-fitted size, upright, at the origin.
+ * first scene, every object visible, real size, upright, at the origin.
  */
 export async function bakeUsdz(projectPath: string): Promise<Uint8Array> {
   const url = new URL(projectPath, location.href);
@@ -32,8 +32,9 @@ export async function bakeUsdz(projectPath: string): Promise<Uint8Array> {
   const renderer = new ThreeRenderer(); // Masters only (PNG/JPEG textures), so no KTX2 loader.
   await renderer.loadScene(document, sceneId, (uri) => fetchBytes(new URL(uri, url)));
   for (const objectId of objectIds) renderer.setVisible(objectId, true);
+  // Real size: the project's own transform (metres), not auto-fitted. Quick Look's pinch-to-resize is
+  // turned off by the link (quickLookHref), so this is the size people see.
   const control = createObjectControl(renderer, objectIds);
-  control.setScale(autoFitScale(renderer.scene));
   control.resetOrientation();
   renderer.setAnchor(IDENTITY);
   return buildUsdzBytes(renderer.scene);
