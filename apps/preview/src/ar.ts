@@ -7,6 +7,7 @@ import { RuntimeCore, RuntimeError, type CameraProjection, type RuntimeEvent, ty
 import { TrackingError } from '@internal-webar/tracking';
 import { BrowserImageTrackingEngine, ImageTrackingProvider } from '@internal-webar/tracking-image';
 import { HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { createKtx2Loader } from './ktx2.js';
 import { PoseSmoother } from './pose-smoother.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
 import { autoFitScale, createObjectControl, setUpTransformGestures } from './scale-control.js';
@@ -78,7 +79,9 @@ async function main(): Promise<void> {
   // Both the renderer and the tracking engine fetch by asset URI; resolve once, up front, for both.
   const document = withAbsoluteAssetUris(rawDocument, url);
 
-  const renderer = new ThreeRenderer();
+  const gl = new WebGLRenderer({ canvas, alpha: true, antialias: true });
+  gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderer = new ThreeRenderer({ ktx2Loader: createKtx2Loader(gl) });
   const readAsset: AssetReader = (uri) => fetchBytes(new URL(uri, url));
   await renderer.loadScene(document, sceneId, readAsset);
   const scene = document.scenes.find((entry) => entry.id === sceneId);
@@ -96,8 +99,6 @@ async function main(): Promise<void> {
 
   const stage = new Scene();
   stage.add(new HemisphereLight(0xffffff, 0x444444, 2), renderer.scene); // PBR materials render black with no light.
-  const gl = new WebGLRenderer({ canvas, alpha: true, antialias: true });
-  gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   // Camera stays at the origin with no transform: the tracker's pose is already camera-relative
   // ("model-view"), so scene.matrixWorld applied under an identity camera view is exactly right.
   const camera = new PerspectiveCamera();

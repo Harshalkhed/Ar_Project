@@ -8,8 +8,8 @@ import { validateProject, type ProjectDocument } from '@internal-webar/project-s
 import { ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
 import { Box3, Color, HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, Vector3, WebGLRenderer } from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
-import { buildUsdzUrl, createQuickLookLink, supportsQuickLook } from './quick-look.js';
-import { withAbsoluteAssetUris } from './resolve-assets.js';
+import { createKtx2Loader } from './ktx2.js';
+import { buildUsdzUrl, createQuickLookLink, findPrebakedUsdz, supportsQuickLook } from './quick-look.js';
 import { autoFitScale, createObjectControl, setUpTransformGestures, type ObjectControl } from './scale-control.js';
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -45,10 +45,14 @@ async function main(): Promise<void> {
   const raw = project as ProjectDocument;
   const sceneId = raw.scenes[0]?.id;
   if (!sceneId) throw new Error('Project has no scene.');
-  const document = withAbsoluteAssetUris(raw, url);
+  // Asset URIs stay relative: readAsset resolves them against the project file. Making them absolute
+  // (as ar.ts must, for its tracking engine) fails the schema's relative-or-https rule on http://localhost.
+  const document = raw;
 
   const objectIds = document.scenes.find((s) => s.id === sceneId)?.objectIds ?? [];
-  const renderer = new ThreeRenderer();
+  // One WebGL context for both paths; KTX2 support is detected against it before any model loads.
+  const gl = new WebGLRenderer({ canvas, alpha: true, antialias: true });
+  const renderer = new ThreeRenderer({ ktx2Loader: createKtx2Loader(gl) });
   const readAsset: AssetReader = (uri) => fetchBytes(new URL(uri, url));
   await renderer.loadScene(document, sceneId, readAsset);
   for (const objectId of objectIds) renderer.setVisible(objectId, true);
@@ -59,7 +63,7 @@ async function main(): Promise<void> {
   });
   control.setScale(autoScale); // Drag to rotate, pinch/scroll to resize, from here.
   setUpTransformGestures(canvas, control);
-  if (!webxrSupported) return startQuickLook(canvas, renderer, control);
+  if (!webxrSupported) return startQuickLook(gl, renderer, control, await findPrebakedUsdz(url));
 
   const stage = new Scene();
   stage.add(new HemisphereLight(0xffffff, 0x444444, 2), renderer.scene); // PBR materials render black with no light.
@@ -68,7 +72,6 @@ async function main(): Promise<void> {
   reticle.visible = false;
   stage.add(reticle);
 
-  const gl = new WebGLRenderer({ canvas, alpha: true, antialias: true });
   gl.xr.enabled = true;
   // Three.js patches this camera's pose from the XR headset/phone each frame during a session.
   const camera = new PerspectiveCamera();
@@ -130,8 +133,12 @@ main().catch((error: unknown) => {
   console.error(error);
 });
 
-/** iOS fallback: a Sketchfab-style preview (drag/pinch still work) plus a two-tap hand-off to AR Quick Look. */
-function startQuickLook(canvas: HTMLCanvasElement, renderer: ThreeRenderer, control: ObjectControl): void {
+/**
+ * iOS fallback: a Sketchfab-style preview (drag/pinch still work) plus a hand-off to AR Quick Look.
+ * With a pre-baked USDZ (scripts/build-assets.mjs) the AR button is ready at once; without one, the
+ * scene is exported on the phone first (two taps, up to ~30 s for big models).
+ */
+function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: ObjectControl, prebakedUsdz: string | null): void {
   renderer.setAnchor(IDENTITY); // visible, at the origin, for both the preview and the export
   const stage = new Scene();
   stage.background = new Color(0x20232a);
@@ -145,7 +152,6 @@ function startQuickLook(canvas: HTMLCanvasElement, renderer: ThreeRenderer, cont
   camera.position.copy(center).add(new Vector3(0, 0.4, 1).normalize().multiplyScalar(distance));
   camera.lookAt(center);
 
-  const gl = new WebGLRenderer({ canvas, antialias: true });
   gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   const resize = (): void => {
     gl.setSize(window.innerWidth, window.innerHeight, false);
@@ -158,6 +164,12 @@ function startQuickLook(canvas: HTMLCanvasElement, renderer: ThreeRenderer, cont
 
   const slot = document.createElement('div');
   slot.style.cssText = 'position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom));display:flex;justify-content:center;z-index:3';
+  document.body.appendChild(slot);
+  if (prebakedUsdz) {
+    slot.appendChild(createQuickLookLink(prebakedUsdz));
+    setStatus('Tap "View in your room (AR)", then point at the floor or a table. Pinch in AR to resize.');
+    return;
+  }
   const prepare = document.createElement('button');
   prepare.textContent = 'Prepare AR view';
   prepare.style.cssText = 'font-size:18px;padding:14px 28px;border-radius:10px;border:none;background:#2a6df4;color:#fff';
@@ -174,6 +186,5 @@ function startQuickLook(canvas: HTMLCanvasElement, renderer: ThreeRenderer, cont
     }
   });
   slot.appendChild(prepare);
-  document.body.appendChild(slot);
   setStatus('Drag to rotate, pinch to resize, then tap "Prepare AR view" to place it in your room.');
 }

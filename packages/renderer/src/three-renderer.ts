@@ -1,6 +1,8 @@
 import { validateProject, type ProjectDocument, type SceneObject, type Transform } from '@internal-webar/project-schema';
 import { Mesh, Object3D, Scene, type Group, type Material } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RendererError, type AssetReader, type LoadedObjectState, type RendererAdapter } from './adapter.js';
 
 const GLB_MAGIC = [0x67, 0x6c, 0x54, 0x46] as const;
@@ -38,8 +40,14 @@ function release(root: Object3D): void {
   });
 }
 
-function parseGlb(bytes: Uint8Array): Promise<Group> {
-  const loader = new GLTFLoader();
+/**
+ * Meshopt geometry (EXT_meshopt_compression) always decodes: the decoder is plain WASM, no GPU needed.
+ * KTX2 textures (KHR_texture_basisu) need a KTX2Loader whose GPU format support was detected against
+ * the host's own WebGL context, so the host passes one in; without it a KTX2 asset fails to load.
+ */
+function parseGlb(bytes: Uint8Array, ktx2Loader: KTX2Loader | undefined): Promise<Group> {
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  if (ktx2Loader) loader.setKTX2Loader(ktx2Loader);
   const data = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(data).set(bytes);
   return new Promise((resolve, reject) => {
@@ -57,6 +65,8 @@ export class ThreeRenderer implements RendererAdapter {
   readonly scene = new Scene();
   private readonly nodes = new Map<string, Object3D>();
   private disposed = false;
+
+  constructor(private readonly options: { readonly ktx2Loader?: KTX2Loader } = {}) {}
 
   async loadScene(project: unknown, sceneId: string, readAsset: AssetReader): Promise<void> {
     this.assertActive();
@@ -131,7 +141,7 @@ export class ThreeRenderer implements RendererAdapter {
     }
     if (!hasGlbMagic(bytes)) throw new RendererError('asset_load_failed', `Asset ${asset.id} does not start with the GLB magic header.`);
     try {
-      return await parseGlb(bytes);
+      return await parseGlb(bytes, this.options.ktx2Loader);
     } catch (error) {
       throw new RendererError('asset_load_failed', failureMessage(error, `Asset ${asset.id} could not be parsed as GLB.`));
     }

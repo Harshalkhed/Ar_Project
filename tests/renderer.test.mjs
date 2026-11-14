@@ -6,6 +6,13 @@ import { RendererError, ThreeRenderer } from '../packages/renderer/dist/index.js
 const loadFixture = async () => JSON.parse(await readFile(new URL('./fixtures/image-glb.project.json', import.meta.url), 'utf8'));
 const placeholderGlb = async () => new Uint8Array(await readFile(new URL('./fixtures/assets/placeholder.glb', import.meta.url)));
 
+test('loads a Meshopt-compressed GLB (what scripts/build-assets.mjs publishes) with no extra setup', async () => {
+  const renderer = new ThreeRenderer();
+  await renderer.loadScene(await loadFixture(), 'scene-main', async () => new Uint8Array(await readFile(new URL('./fixtures/assets/placeholder-meshopt.glb', import.meta.url))));
+  assert.equal(renderer.getObjectState('object-model').modelLoaded, true);
+  renderer.dispose();
+});
+
 test('loads the fixture scene from the placeholder GLB, applies transform and visibility, then disposes', async () => {
   const project = await loadFixture();
   const readUris = [];

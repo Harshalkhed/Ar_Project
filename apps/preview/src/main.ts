@@ -2,6 +2,7 @@ import { validateProject, type ProjectDocument } from '@internal-webar/project-s
 import { RendererError, ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
 import { Box3, Color, DirectionalLight, HemisphereLight, PerspectiveCamera, Scene, Vector3, WebGLRenderer } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createKtx2Loader } from './ktx2.js';
 
 const DEFAULT_PROJECT = 'projects/office-chair/project.json';
 
@@ -56,7 +57,9 @@ async function main(): Promise<void> {
   const sceneId = document.triggers[0]?.sceneIds[0] ?? document.scenes[0]?.id;
   if (!sceneId) throw new Error('Project has no scene to preview.');
 
-  const renderer = new ThreeRenderer();
+  const gl = new WebGLRenderer({ canvas, antialias: true });
+  gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  const renderer = new ThreeRenderer({ ktx2Loader: createKtx2Loader(gl) });
   const readAsset: AssetReader = async (uri) => {
     setStatus(`Downloading ${uri}…`);
     const bytes = await fetchBytes(new URL(uri, url));
@@ -76,8 +79,6 @@ async function main(): Promise<void> {
   sun.position.set(3, 5, 4);
   stage.add(sun, renderer.scene);
 
-  const gl = new WebGLRenderer({ canvas, antialias: true });
-  gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   const camera = new PerspectiveCamera(45, 1, 0.01, 1000);
   const controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;

@@ -44,6 +44,15 @@ Each package builds to its own `packages/<name>/dist` through TypeScript project
 
 `apps/preview` is a Vite app that validates a project, loads its first scene through `ThreeRenderer`, reveals the scene objects, and frames them with orbit controls (drag to orbit; pinch or scroll to zoom). It loads `projects/office-chair/project.json` by default; pass another same-origin project with `?project=projects/<name>/project.json`. Projects and their assets live in `apps/preview/public/projects/<name>/` and are published as-is, so only put publishable assets there. Failures are shown in the status bar.
 
+## Asset pipeline
+
+Master models live in `assets-src/projects/<name>/…`, which is not published. `pnpm run build:assets` turns them into the delivery files under `apps/preview/public/projects/<name>/`:
+
+- each master `.glb` is compressed to the same relative path (Meshopt geometry, KTX2 textures capped at 2048 px, light mesh simplification), so `project.json` keeps pointing at it unchanged;
+- each project with a model gets a pre-baked `quicklook.usdz` next to its `project.json`, exported in headless Chromium by the same code iPhones run, from the masters.
+
+Up-to-date outputs are skipped; `--force` rebuilds everything (do this after changing `apps/preview/src/quick-look.ts` or `bake.ts`), and `--skip-usdz` only compresses. To add a model, put the master in `assets-src/projects/<name>/assets/` and reference `assets/<file>.glb` from the project. One-time setup: KTX-Software 4.4+ ([installer](https://github.com/KhronosGroup/KTX-Software/releases); the script finds the default Windows install folder without PATH changes) and `pnpm exec playwright install chromium`.
+
 Vercel builds and serves the site using `vercel.json`. Deploy from the repository root with `npx vercel deploy --prod` after a one-time `npx vercel login`.
 
 ## Real-device test
@@ -62,17 +71,17 @@ This is **image-anchored** placement: content stays attached to wherever the tar
 | Device | What happens | Notes |
 |---|---|---|
 | Android + Chrome + ARCore | WebXR hit-test placement; the model stays fixed in the room. Drag to rotate/tilt (with momentum), pinch/scroll to resize. | Needs Google Play Services for AR. Check a device at `check.html`. |
-| iPhone / iPad Safari | Same drag/pinch preview, then **Prepare AR view** → **View in your room (AR)** hands off to Apple's AR Quick Look (native placement, pinch, rotate). | iOS has no WebXR. Quick Look is Apple's own viewer, not a vendor SDK. |
+| iPhone / iPad Safari | Same drag/pinch preview, plus **View in your room (AR)**, which hands off to Apple's AR Quick Look (native placement, pinch, rotate). With a pre-baked `quicklook.usdz` the button is ready at once; without one, **Prepare AR view** exports on the phone first. | iOS has no WebXR. Quick Look is Apple's own viewer, not a vendor SDK. |
 | Anything else | A visible "supports neither" message. | |
 
-iOS test: open `https://<site>/webxr.html?project=projects/floorplan/project.json` in **Safari** (Chrome on iPhone is the same WebKit engine; Quick Look works from Safari). Tap **Prepare AR view**, wait for "Ready", tap **View in your room (AR)**. The export bakes in the current size (the `%` badge) at an upright orientation; heavy models take longer (office chair ≈ 1 s / 21 MB; floorplan ≈ 30 s / 50 MB on a desktop). `?quicklook` forces this path on any browser to test the preview and export without an iPhone. Image tracking (`ar.html`) already works on iPhone/iPad.
+iOS test: open `https://<site>/webxr.html?project=projects/floorplan/project.json` in **Safari** (Chrome on iPhone is the same WebKit engine; Quick Look works from Safari). Tap **View in your room (AR)**. A pre-baked file is placed at the page's default size (pinch in Quick Look to resize); the on-device fallback (**Prepare AR view**, then the AR button) bakes in the current `%` size instead. `?quicklook` forces this path on any browser to test the preview and export without an iPhone. Image tracking (`ar.html`) already works on iPhone/iPad.
 
 ## Next milestone
 
 See `PROJECT.md` → "Next 30 days" for the full, approved backlog. Engineering highlights:
 
 1. **Mobile performance for the image-tracking engine.** Detection now runs in a Web Worker, with optical-flow tracking between detections (2026-11-14). Still open: measuring both on a phone, and calibrating or better approximating camera intrinsics. See the "known limitations" list in `Architecture.md`'s in-house-engine decision entry.
-2. **Asset pipeline.** Compress GLBs (meshopt/KTX2) and ship a pre-baked USDZ per project so iPhone Quick Look opens instantly instead of exporting on the device.
+2. **Asset pipeline.** Built 2026-11-14 (see "Asset pipeline" above). Still open: USDZ files are large because three's exporter writes text geometry (floorplan 47 MB); see `Architecture.md`.
 3. **Wall-art placement.** Vertical planes via WebXR `plane-detection` on Android, and vertical placement in Quick Look on iOS.
 4. **Room-fixed placement behind `TrackingProvider`** (it works today as a standalone page). `'webxr'` is already a valid schema `tracking.type`.
 5. **Showcase website** to the mobile quality bar in `PROJECT.md`.
