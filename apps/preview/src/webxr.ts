@@ -6,7 +6,7 @@
 // uses (see Architecture.md's WebXR scoping entry); the pre-tap reticle stays outside either way.
 import { placementSurfaceOf, validateProject, type PlacementSurface, type ProjectDocument } from '@internal-webar/project-schema';
 import { ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
-import { Box3, Color, HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, Vector3, WebGLRenderer } from 'three';
+import { Box3, Color, HemisphereLight, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Quaternion, RingGeometry, Scene, Vector3, WebGLRenderer } from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { offerOpenInBrowser } from './in-app-browser.js';
 import { createKtx2Loader } from './ktx2.js';
@@ -88,8 +88,11 @@ async function main(): Promise<void> {
   // canvas, status text and scale badge sat outside it and were silently non-interactive/hidden.
   window.document.body.appendChild(
     // `plane-detection` (optional) asks the device to track walls as well as floors (Chrome 147+).
-    ARButton.createButton(gl, { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay', 'plane-detection'], domOverlay: { root: window.document.body } }),
+    // `anchors` (optional) lets the device keep correcting the placed object's pose as its tracking improves.
+    ARButton.createButton(gl, { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay', 'plane-detection', 'anchors'], domOverlay: { root: window.document.body } }),
   );
+  // Three's Start/Stop AR button sits at the bottom; lift the status text above it (see webxr.html).
+  window.document.body.classList.add('has-ar-button');
 
   let hitTestSource: XRHitTestSource | null = null;
   let hitTestSourceRequested = false;
@@ -106,11 +109,36 @@ async function main(): Promise<void> {
     if (touchStart) touchMoved = Math.max(touchMoved, Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y));
   });
   const controller = gl.xr.getController(0);
-  // Where a tap would place the object now: the anchor for the latest hit on the project's surface.
+  // Where the centre-of-screen ring is: shown as a guide, and used for a tap only when the device cannot
+  // hit-test the touch itself.
   let candidate: number[] | null = null;
+  // Where the finger is touching. People hold the phone fairly upright, so the centre ray meets the floor
+  // far away or at the foot of a wall (on 2026-11-14 the chair landed "too far" and "on the wall"); a tap
+  // should place the object on the spot under the finger instead (WebXR hit-test for transient input).
+  let touchSource: XRTransientInputHitTestSource | null = null;
+  let touchCandidate: number[] | null = null;
+  canvas.addEventListener('pointerdown', () => (touchCandidate = null));
+  // WebXR anchor for the placed object. Right after placement the device's estimate of the floor is still
+  // rough, and it keeps refining it; an object pinned to the first estimate can end up floating above
+  // (or sunk into) the floor, as seen on an Android phone 2026-11-14. An anchor follows those corrections.
+  // Anchors can only be created inside a frame callback, and `select` fires between frames, so the tap
+  // records the pose and the next frame creates the anchor. Without anchor support the object simply
+  // stays where it was placed.
+  let pendingAnchorPose: number[] | null = null;
+  let placedAnchor: XRAnchor | null = null;
+  let placement = 0; // Counts taps, so an anchor that arrives after a newer tap is discarded.
   controller.addEventListener('select', () => {
-    if (!candidate || touchMoved > TAP_MAX_MOVE_PX) return;
-    renderer.setAnchor(candidate);
+    if (touchMoved > TAP_MAX_MOVE_PX) return;
+    const target = touchSource ? touchCandidate : candidate;
+    if (!target) {
+      if (touchSource) setStatus(surface === 'wall' && !acceptFloorForWall ? 'Tap on the wall where you want it.' : 'Tap on the floor where you want it.');
+      return;
+    }
+    renderer.setAnchor(target);
+    placedAnchor?.delete();
+    placedAnchor = null;
+    placement += 1;
+    pendingAnchorPose = target;
     setStatus(surface === 'wall' ? 'Placed at real size. Tap another spot on the wall to move it.' : 'Placed at real size. Tap another spot on the floor to move it; drag to turn it.');
   });
   stage.add(controller);
@@ -130,30 +158,69 @@ async function main(): Promise<void> {
         session.requestReferenceSpace('viewer').then((viewerSpace) => {
           session.requestHitTestSource?.({ space: viewerSpace })?.then((source) => (hitTestSource = source));
         });
+        session
+          .requestHitTestSourceForTransientInput?.({ profile: 'generic-touchscreen' })
+          ?.then((source) => (touchSource = source))
+          .catch(() => undefined); // Unsupported: taps fall back to the centre ring.
         session.addEventListener('end', () => {
           hitTestSourceRequested = false;
           hitTestSource = null;
+          touchSource = null;
+          touchCandidate = null;
           searchingSince = null;
           wallHintShown = false;
           acceptFloorForWall = false;
+          placedAnchor = null;
+          pendingAnchorPose = null;
+          placement += 1;
         });
         hitTestSourceRequested = true;
       }
+      if (referenceSpace && pendingAnchorPose) {
+        const pose = pendingAnchorPose;
+        const forPlacement = placement;
+        pendingAnchorPose = null;
+        const position = new Vector3();
+        const orientation = new Quaternion();
+        new Matrix4().fromArray(pose).decompose(position, orientation, new Vector3());
+        frame
+          .createAnchor?.(new XRRigidTransform(position, orientation), referenceSpace)
+          ?.then((anchor) => {
+            // A newer tap may have replaced this placement while the anchor was being created.
+            if (forPlacement !== placement) return anchor.delete();
+            placedAnchor = anchor;
+          })
+          .catch(() => undefined); // No anchor: the object stays at its placed pose.
+      }
+      if (referenceSpace && placedAnchor && frame.trackedAnchors?.has(placedAnchor)) {
+        const anchorPose = frame.getPose(placedAnchor.anchorSpace, referenceSpace);
+        if (anchorPose) renderer.setAnchor(Array.from(anchorPose.transform.matrix));
+      }
       // Keep hit-testing after placement: the reticle shows where a tap would move the object.
       // Only hits on the project's surface count (a wall piece ignores the floor and vice versa).
-      if (hitTestSource && referenceSpace) {
-        candidate = null;
-        const viewer = frame.getViewerPose(referenceSpace)?.transform.position;
-        for (const hit of frame.getHitTestResults(hitTestSource)) {
-          const matrix = hit.getPose(referenceSpace)?.transform.matrix;
-          let anchor = matrix && anchorFor(matrix, surface);
-          // Wall not detectable (plain or dim wall): once offered, a floor tap hangs it at 1.45 m, facing you.
-          if (matrix && !anchor && acceptFloorForWall && viewer && surfaceOf(matrix) === 'floor') anchor = floorMountedWallAnchor(matrix, viewer, WALL_HANGING_CENTRE_M);
-          if (!matrix || !anchor) continue;
-          candidate = anchor;
-          reticle.matrix.fromArray(matrix); // The ring lies flat on the surface (its +Y is the normal).
-          break;
+      // The first hit on the project's surface, as an anchor pose plus the raw hit pose (for the ring).
+      const viewer = referenceSpace ? frame.getViewerPose(referenceSpace)?.transform.position : undefined;
+      const firstPlacement = (hits: readonly XRHitTestResult[], space: XRReferenceSpace): { anchor: number[]; matrix: Float32Array } | null => {
+        for (const hit of hits) {
+          const matrix = hit.getPose(space)?.transform.matrix;
+          if (!matrix) continue;
+          let anchor = anchorFor(matrix, surface);
+          // Wall not detectable (plain or dim wall): once offered, a floor hit hangs it at 1.45 m, facing you.
+          if (!anchor && acceptFloorForWall && viewer && surfaceOf(matrix) === 'floor') anchor = floorMountedWallAnchor(matrix, viewer, WALL_HANGING_CENTRE_M);
+          if (anchor) return { anchor, matrix };
         }
+        return null;
+      };
+      if (touchSource && referenceSpace) {
+        for (const touch of frame.getHitTestResultsForTransientInput(touchSource)) {
+          const found = firstPlacement(touch.results, referenceSpace);
+          if (found) touchCandidate = found.anchor; // Latest frame of the touch wins.
+        }
+      }
+      if (hitTestSource && referenceSpace) {
+        const found = firstPlacement(frame.getHitTestResults(hitTestSource), referenceSpace);
+        candidate = found?.anchor ?? null;
+        if (found) reticle.matrix.fromArray(found.matrix); // The ring lies flat on the surface (its +Y is the normal).
         reticle.visible = candidate !== null;
         if (candidate) wallHintShown = true; // A wall was found; no hint needed this session.
         if (surface === 'wall' && !wallHintShown && time - searchingSince > WALL_HINT_AFTER_MS) {
@@ -166,7 +233,7 @@ async function main(): Promise<void> {
     gl.render(stage, camera);
   });
 
-  setStatus(`Tap "Start AR", point at ${where}, tap the screen to place it at real size.`);
+  setStatus(`Tap "Start AR", point at ${where} until the blue ring appears, then tap the spot on ${where} where you want it. It appears at real size.`);
 }
 
 // In an in-app browser neither WebXR nor Quick Look usually works; offer the real browser first.
