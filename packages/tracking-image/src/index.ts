@@ -132,3 +132,4 @@ export class ImageTrackingProvider implements TrackingProvider {
 }
 
 export { BrowserImageTrackingEngine } from './browser-engine.js';
+export { createDetectionHandler, type DetectionReply, type DetectionRequest, type FrameIntrinsics } from './detection-protocol.js';

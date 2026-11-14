@@ -71,7 +71,7 @@ iOS test: open `https://<site>/webxr.html?project=projects/floorplan/project.jso
 
 See `PROJECT.md` → "Next 30 days" for the full, approved backlog. Engineering highlights:
 
-1. **Mobile performance for the image-tracking engine.** Move detection into a Web Worker, add frame-to-frame (optical flow) tracking between full re-detections, and calibrate or better-approximate camera intrinsics. See the "known limitations" list in `Architecture.md`'s in-house-engine decision entry.
+1. **Mobile performance for the image-tracking engine.** Detection now runs in a Web Worker, with optical-flow tracking between detections (2026-11-14). Still open: measuring both on a phone, and calibrating or better approximating camera intrinsics. See the "known limitations" list in `Architecture.md`'s in-house-engine decision entry.
 2. **Asset pipeline.** Compress GLBs (meshopt/KTX2) and ship a pre-baked USDZ per project so iPhone Quick Look opens instantly instead of exporting on the device.
 3. **Wall-art placement.** Vertical planes via WebXR `plane-detection` on Android, and vertical placement in Quick Look on iOS.
 4. **Room-fixed placement behind `TrackingProvider`** (it works today as a standalone page). `'webxr'` is already a valid schema `tracking.type`.

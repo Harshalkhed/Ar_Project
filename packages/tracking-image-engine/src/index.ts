@@ -14,4 +14,5 @@ export {
   type SerializedImageTarget,
 } from './target.js';
 export { DEFAULT_DETECTOR_OPTIONS, ImageTargetDetector, type Detection, type DetectorOptions } from './detector.js';
+export { buildPyramid, DEFAULT_FLOW_OPTIONS, trackPoints, type FlowOptions } from './flow.js';
 export { LiveImageTracker, type LiveTrackerEvent, type LiveTrackerOptions } from './live-tracker.js';

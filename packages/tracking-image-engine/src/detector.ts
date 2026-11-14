@@ -15,6 +15,10 @@ export interface Detection {
   /** Target image corners (top-left, top-right, bottom-right, bottom-left) in frame pixels. */
   readonly corners: [number, number][];
   readonly inlierCount: number;
+  /** RANSAC inliers: target-plane point ↔ frame pixel. Optical flow tracks these between detections. */
+  readonly correspondences: readonly PointCorrespondence[];
+  /** The refined pose in OpenCV convention, used to start pose refinement on the next tracked frame. */
+  readonly cvPose: CvPose;
 }
 
 export interface DetectorOptions {
@@ -87,7 +91,7 @@ export class ImageTargetDetector {
       const corners = [[0, 0], [target.width, 0], [target.width, target.height], [0, target.height]].map(([u, v]) =>
         projectPoint(refined, intrinsics, applyHomography(targetPixelsToPlane, u, v)),
       );
-      best = { targetIndex, planeToImage, pose: glPoseFromCv(refined), corners, inlierCount };
+      best = { targetIndex, planeToImage, pose: glPoseFromCv(refined), corners, inlierCount, correspondences, cvPose: refined };
     });
     return best;
   }
