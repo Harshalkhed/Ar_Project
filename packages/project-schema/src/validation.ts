@@ -28,6 +28,9 @@ export function validateProject(input: unknown): ValidationIssue[] {
   if (input.schemaVersion !== '1.0') report('schemaVersion', 'Unsupported schema version.');
   if (!input.id) report('id', 'Project id is required.');
   if (!input.name) report('name', 'Project name is required.');
+  if (input.placement !== undefined && !(isRecord(input.placement) && (input.placement.surface === 'floor' || input.placement.surface === 'wall'))) {
+    report('placement.surface', 'Placement surface must be "floor" or "wall".');
+  }
   for (const key of ['triggers', 'scenes', 'objects', 'assets']) if (!Array.isArray(input[key])) report(key, 'Must be an array.');
   // Reference checks against a missing collection would only produce cascading noise.
   if (issues.some((issue) => issue.message === 'Must be an array.')) return issues;

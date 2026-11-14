@@ -4,7 +4,7 @@
 // never run on real hardware, so proving the raw browser API works comes first (ponytail rung 1).
 // If it works, the confirmed-placement half can move behind the same seam ImageTrackingProvider
 // uses (see Architecture.md's WebXR scoping entry); the pre-tap reticle stays outside either way.
-import { validateProject, type ProjectDocument } from '@internal-webar/project-schema';
+import { placementSurfaceOf, validateProject, type PlacementSurface, type ProjectDocument } from '@internal-webar/project-schema';
 import { ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
 import { Box3, Color, HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, Vector3, WebGLRenderer } from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
@@ -12,6 +12,7 @@ import { offerOpenInBrowser } from './in-app-browser.js';
 import { createKtx2Loader } from './ktx2.js';
 import { buildUsdzUrl, createQuickLookLink, findPrebakedUsdz, supportsQuickLook } from './quick-look.js';
 import { createObjectControl, setUpTransformGestures, type ObjectControl } from './scale-control.js';
+import { anchorFor } from './surface.js';
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -59,11 +60,14 @@ async function main(): Promise<void> {
   for (const objectId of objectIds) renderer.setVisible(objectId, true);
   renderer.setAnchor(null);
   // Room placement shows the object at its real size (the project's own transform, in metres): no
-  // auto-fit and no pinch-to-resize. Dragging only spins it; it stays upright on the floor.
+  // auto-fit and no pinch-to-resize. On the floor, dragging only spins it so it stays upright; wall
+  // pieces get no gestures at all, since any turn would lift them off the wall.
+  const surface = placementSurfaceOf(document);
+  const where = surface === 'wall' ? 'a wall' : 'the floor';
   const control = createObjectControl(renderer, objectIds);
   if (scaleBadge) scaleBadge.textContent = 'Real size';
-  setUpTransformGestures(canvas, control, { scale: false, tilt: false });
-  if (!webxrSupported) return startQuickLook(gl, renderer, control, await findPrebakedUsdz(url));
+  if (surface === 'floor') setUpTransformGestures(canvas, control, { scale: false, tilt: false });
+  if (!webxrSupported) return startQuickLook(gl, renderer, control, surface, await findPrebakedUsdz(url));
 
   const stage = new Scene();
   stage.add(new HemisphereLight(0xffffff, 0x444444, 2), renderer.scene); // PBR materials render black with no light.
@@ -79,7 +83,8 @@ async function main(): Promise<void> {
   // close button) and only THAT subtree gets real pointer/touch events during the session -- our
   // canvas, status text and scale badge sat outside it and were silently non-interactive/hidden.
   window.document.body.appendChild(
-    ARButton.createButton(gl, { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: window.document.body } }),
+    // `plane-detection` (optional) asks the device to track walls as well as floors (Chrome 147+).
+    ARButton.createButton(gl, { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay', 'plane-detection'], domOverlay: { root: window.document.body } }),
   );
 
   let hitTestSource: XRHitTestSource | null = null;
@@ -97,10 +102,12 @@ async function main(): Promise<void> {
     if (touchStart) touchMoved = Math.max(touchMoved, Math.hypot(event.clientX - touchStart.x, event.clientY - touchStart.y));
   });
   const controller = gl.xr.getController(0);
+  // Where a tap would place the object now: the anchor for the latest hit on the project's surface.
+  let candidate: number[] | null = null;
   controller.addEventListener('select', () => {
-    if (!reticle.visible || touchMoved > TAP_MAX_MOVE_PX) return;
-    renderer.setAnchor(Array.from(reticle.matrix.elements));
-    setStatus('Placed at real size. Tap another spot on the floor to move it; drag to turn it.');
+    if (!candidate || touchMoved > TAP_MAX_MOVE_PX) return;
+    renderer.setAnchor(candidate);
+    setStatus(surface === 'wall' ? 'Placed at real size. Tap another spot on the wall to move it.' : 'Placed at real size. Tap another spot on the floor to move it; drag to turn it.');
   });
   stage.add(controller);
 
@@ -119,23 +126,24 @@ async function main(): Promise<void> {
         hitTestSourceRequested = true;
       }
       // Keep hit-testing after placement: the reticle shows where a tap would move the object.
+      // Only hits on the project's surface count (a wall piece ignores the floor and vice versa).
       if (hitTestSource && referenceSpace) {
-        const hits = frame.getHitTestResults(hitTestSource);
-        if (hits.length > 0) {
-          const pose = hits[0].getPose(referenceSpace);
-          if (pose) {
-            reticle.visible = true;
-            reticle.matrix.fromArray(pose.transform.matrix);
-          }
-        } else {
-          reticle.visible = false;
+        candidate = null;
+        for (const hit of frame.getHitTestResults(hitTestSource)) {
+          const matrix = hit.getPose(referenceSpace)?.transform.matrix;
+          const anchor = matrix && anchorFor(matrix, surface);
+          if (!matrix || !anchor) continue;
+          candidate = anchor;
+          reticle.matrix.fromArray(matrix); // The ring lies flat on the surface (its +Y is the normal).
+          break;
         }
+        reticle.visible = candidate !== null;
       }
     }
     gl.render(stage, camera);
   });
 
-  setStatus('Tap "Start AR", point at the floor, tap the screen to place it at real size.');
+  setStatus(`Tap "Start AR", point at ${where}, tap the screen to place it at real size.`);
 }
 
 // In an in-app browser neither WebXR nor Quick Look usually works; offer the real browser first.
@@ -149,7 +157,9 @@ offerOpenInBrowser().then(main).catch((error: unknown) => {
  * With a pre-baked USDZ (scripts/build-assets.mjs) the AR button is ready at once; without one, the
  * scene is exported on the phone first (two taps, up to ~30 s for big models).
  */
-function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: ObjectControl, prebakedUsdz: string | null): void {
+function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: ObjectControl, surface: PlacementSurface, prebakedUsdz: string | null): void {
+  const where = surface === 'wall' ? 'a wall' : 'the floor';
+  const handling = surface === 'wall' ? 'drag to slide it along the wall' : 'drag to move it, twist to turn it';
   renderer.setAnchor(IDENTITY); // visible, at the origin, for both the preview and the export
   const stage = new Scene();
   stage.background = new Color(0x20232a);
@@ -182,7 +192,7 @@ function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: Obj
   }
   if (prebakedUsdz) {
     slot.appendChild(createQuickLookLink(prebakedUsdz));
-    setStatus('Tap "View in your room (AR)", then point at the floor. It appears at real size; drag to move it, twist to turn it.');
+    setStatus(`Tap "View in your room (AR)", then point at ${where}. It appears at real size; ${handling}.`);
     return;
   }
   const prepare = document.createElement('button');
@@ -193,13 +203,13 @@ function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: Obj
     setStatus('Preparing the AR model -- a few seconds, up to a minute for large models…');
     try {
       control.resetOrientation(); // export upright at real size, not mid-spin
-      slot.replaceChildren(createQuickLookLink(await buildUsdzUrl(renderer.scene)));
-      setStatus('Ready. Tap "View in your room (AR)", then point at the floor or a table.');
+      slot.replaceChildren(createQuickLookLink(await buildUsdzUrl(renderer.scene, surface)));
+      setStatus(`Ready. Tap "View in your room (AR)", then point at ${where}.`);
     } catch (error) {
       prepare.disabled = false;
       setStatus(`AR export failed: ${error instanceof Error ? error.message : String(error)}`, true);
     }
   });
   slot.appendChild(prepare);
-  setStatus('Drag to turn it, then tap "Prepare AR view" to place it in your room at real size.');
+  setStatus(`${surface === 'floor' ? 'Drag to turn it, then tap' : 'Tap'} "Prepare AR view" to place it on ${where} at real size.`);
 }

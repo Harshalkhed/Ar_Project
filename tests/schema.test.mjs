@@ -9,6 +9,19 @@ const withAsset = (asset) => ({ ...base, assets: [...base.assets, asset] });
 
 test('accepts a valid multi-trigger-capable project', () => assert.deepEqual(validateProject(base), []));
 test('reports references to unknown scenes', () => assert.match(validateProject({ ...base, triggers: [{ ...base.triggers[0], sceneIds: ['missing'] }] })[0].message, /Unknown scene/));
+test('placement surface is optional, and floor or wall when present', () => {
+  assert.deepEqual(validateProject(base), []);
+  assert.deepEqual(validateProject({ ...base, placement: { surface: 'wall' } }), []);
+  assert.deepEqual(validateProject({ ...base, placement: { surface: 'floor' } }), []);
+  for (const placement of [{ surface: 'ceiling' }, {}, 'wall', null]) {
+    assert.deepEqual(messages({ ...base, placement }), ['placement.surface: Placement surface must be "floor" or "wall".'], JSON.stringify(placement));
+  }
+});
+test('placementSurfaceOf defaults to floor', async () => {
+  const { placementSurfaceOf } = await import('../packages/project-schema/dist/index.js');
+  assert.equal(placementSurfaceOf(base), 'floor');
+  assert.equal(placementSurfaceOf({ placement: { surface: 'wall' } }), 'wall');
+});
 test('reports unsupported schema versions', () => assert.match(validateProject({ ...base, schemaVersion: '9.0' })[0].message, /Unsupported/));
 
 test('reports non-object input instead of throwing', () => {

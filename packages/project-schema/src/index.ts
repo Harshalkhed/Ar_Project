@@ -11,6 +11,9 @@ export interface Trigger { id: string; type: TrackingType; label: string; sceneI
 /** Provider-neutral config required on `image` triggers: the target image is an `image` asset referenced by stable ID. */
 export interface ImageTriggerConfig { imageAssetId: string; }
 export interface Deployment { experienceId: string; version: number; status: DeploymentStatus; runtimeVersion: string; }
+/** Which real surface room placement puts the scene on. A wall-placed model faces +Z, with +Y up and its back at z = 0. */
+export type PlacementSurface = 'floor' | 'wall';
+export const PLACEMENT_SURFACES: readonly PlacementSurface[] = ['floor', 'wall'];
 export interface ProjectDocument {
   schemaVersion: '1.0';
   id: string;
@@ -21,6 +24,11 @@ export interface ProjectDocument {
   objects: SceneObject[];
   assets: AssetRef[];
   deployment: Deployment;
+  /** Room placement surface. Optional; missing means `floor`. */
+  placement?: { surface: PlacementSurface };
 }
+
+/** The project's room-placement surface, defaulting to floor. */
+export const placementSurfaceOf = (project: Pick<ProjectDocument, 'placement'>): PlacementSurface => project.placement?.surface ?? 'floor';
 
 export { validateProject, type ValidationIssue } from './validation.js';

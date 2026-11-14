@@ -1,4 +1,5 @@
 import { USDZExporter } from 'three/addons/exporters/USDZExporter.js';
+import type { PlacementSurface } from '@internal-webar/project-schema';
 import { Mesh, Texture, type Material, type Object3D } from 'three';
 
 /**
@@ -13,10 +14,15 @@ export const supportsQuickLook = (): boolean => document.createElement('a').relL
  * GLBs stay phone-sized. The same function bakes the pre-built files (scripts/build-assets.mjs), so
  * pre-baked and on-device exports cannot drift apart.
  */
-export async function buildUsdzBytes(root: Object3D): Promise<Uint8Array<ArrayBuffer>> {
+export async function buildUsdzBytes(root: Object3D, surface: PlacementSurface = 'floor'): Promise<Uint8Array<ArrayBuffer>> {
   root.updateMatrixWorld(true);
   preferJpegTextures(root);
-  return new USDZExporter().parseAsync(root, { quickLookCompatible: true, maxTextureSize: 1024 });
+  return new USDZExporter().parseAsync(root, { quickLookCompatible: true, maxTextureSize: 1024, ar: usdzAnchoring(surface) });
+}
+
+/** Quick Look anchors floor content to horizontal planes and wall content to vertical ones. */
+export function usdzAnchoring(surface: PlacementSurface): { anchoring: { type: 'plane' }; planeAnchoring: { alignment: 'horizontal' | 'vertical' } } {
+  return { anchoring: { type: 'plane' }, planeAnchoring: { alignment: surface === 'wall' ? 'vertical' : 'horizontal' } };
 }
 
 /**
@@ -40,8 +46,8 @@ export function preferJpegTextures(root: Object3D): void {
 }
 
 /** On-device export to a blob URL: the fallback when a project has no pre-baked USDZ. */
-export async function buildUsdzUrl(root: Object3D): Promise<string> {
-  return URL.createObjectURL(new Blob([await buildUsdzBytes(root)], { type: 'model/vnd.usdz+zip' }));
+export async function buildUsdzUrl(root: Object3D, surface: PlacementSurface = 'floor'): Promise<string> {
+  return URL.createObjectURL(new Blob([await buildUsdzBytes(root, surface)], { type: 'model/vnd.usdz+zip' }));
 }
 
 /** Pre-baked file name, next to the project's project.json. */

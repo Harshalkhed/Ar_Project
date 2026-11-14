@@ -1,6 +1,6 @@
 // Build-time only: scripts/build-assets.mjs loads this in headless Chromium to pre-bake each project's
 // AR Quick Look USDZ. It is not one of the site's pages and is not in the production build.
-import { validateProject, type ProjectDocument } from '@internal-webar/project-schema';
+import { placementSurfaceOf, validateProject, type ProjectDocument } from '@internal-webar/project-schema';
 import { ThreeRenderer } from '@internal-webar/renderer';
 import { buildUsdzBytes } from './quick-look.js';
 import { createObjectControl } from './scale-control.js';
@@ -37,5 +37,5 @@ export async function bakeUsdz(projectPath: string): Promise<Uint8Array> {
   const control = createObjectControl(renderer, objectIds);
   control.resetOrientation();
   renderer.setAnchor(IDENTITY);
-  return buildUsdzBytes(renderer.scene);
+  return buildUsdzBytes(renderer.scene, placementSurfaceOf(document));
 }

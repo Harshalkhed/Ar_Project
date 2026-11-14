@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "id": "wall-art-placeholder",
+  "name": "Wall art (placeholder)",
+  "tracking": { "type": "webxr" },
+  "placement": { "surface": "wall" },
+  "triggers": [
+    { "id": "trigger-place", "type": "webxr", "label": "Place", "sceneIds": ["scene-main"], "config": {} }
+  ],
+  "scenes": [
+    { "id": "scene-main", "name": "Main", "objectIds": ["object-wall-art"], "interactions": [] }
+  ],
+  "objects": [
+    {
+      "id": "object-wall-art",
+      "assetId": "asset-wall-art",
+      "name": "Framed picture, 62 × 82 cm",
+      "transform": {
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "visible": false
+    }
+  ],
+  "assets": [
+    { "id": "asset-wall-art", "kind": "model", "uri": "assets/wall_art.glb" }
+  ],
+  "deployment": { "experienceId": "wall-art-placeholder", "version": 1, "status": "draft", "runtimeVersion": "0.1.0" }
+}
