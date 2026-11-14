@@ -73,6 +73,7 @@ This is **image-anchored** placement: content stays attached to wherever the tar
 | Android + Chrome + ARCore | WebXR hit-test placement; the model stays fixed in the room. Drag to rotate/tilt (with momentum), pinch/scroll to resize. | Needs Google Play Services for AR. Check a device at `check.html`. |
 | iPhone / iPad Safari | Same drag/pinch preview, plus **View in your room (AR)**, which hands off to Apple's AR Quick Look (native placement, pinch, rotate). With a pre-baked `quicklook.usdz` the button is ready at once; without one, **Prepare AR view** exports on the phone first. | iOS has no WebXR. Quick Look is Apple's own viewer, not a vendor SDK. |
 | Anything else | A visible "supports neither" message. | |
+| Inside Instagram, Facebook, WhatsApp, LinkedIn and other apps | An **Open in browser** screen first (Android: **Open in Chrome**; iPhone: steps plus **Copy link**), with **Continue here anyway**. `ar.html` shows it too. | In-app browsers usually block the camera and AR. |
 
 iOS test: open `https://<site>/webxr.html?project=projects/floorplan/project.json` in **Safari** (Chrome on iPhone is the same WebKit engine; Quick Look works from Safari). Tap **View in your room (AR)**. A pre-baked file is placed at the page's default size (pinch in Quick Look to resize); the on-device fallback (**Prepare AR view**, then the AR button) bakes in the current `%` size instead. `?quicklook` forces this path on any browser to test the preview and export without an iPhone. Image tracking (`ar.html`) already works on iPhone/iPad.
 

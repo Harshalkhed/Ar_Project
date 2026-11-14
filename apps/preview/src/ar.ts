@@ -7,6 +7,7 @@ import { RuntimeCore, RuntimeError, type CameraProjection, type RuntimeEvent, ty
 import { TrackingError } from '@internal-webar/tracking';
 import { BrowserImageTrackingEngine, ImageTrackingProvider } from '@internal-webar/tracking-image';
 import { HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { offerOpenInBrowser } from './in-app-browser.js';
 import { createKtx2Loader } from './ktx2.js';
 import { PoseSmoother } from './pose-smoother.js';
 import { withAbsoluteAssetUris } from './resolve-assets.js';
@@ -188,6 +189,9 @@ async function main(): Promise<void> {
   });
   await runtime.start(document);
 }
+
+// Shown over the start screen, before any camera prompt: in-app browsers usually block the camera.
+void offerOpenInBrowser();
 
 startButton?.addEventListener('click', () => {
   startOverlay?.remove();

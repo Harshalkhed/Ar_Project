@@ -8,6 +8,7 @@ import { validateProject, type ProjectDocument } from '@internal-webar/project-s
 import { ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
 import { Box3, Color, HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Scene, Vector3, WebGLRenderer } from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
+import { offerOpenInBrowser } from './in-app-browser.js';
 import { createKtx2Loader } from './ktx2.js';
 import { buildUsdzUrl, createQuickLookLink, findPrebakedUsdz, supportsQuickLook } from './quick-look.js';
 import { autoFitScale, createObjectControl, setUpTransformGestures, type ObjectControl } from './scale-control.js';
@@ -128,7 +129,8 @@ async function main(): Promise<void> {
   setStatus('Tap "Start AR", point at a flat surface, tap the screen to place.');
 }
 
-main().catch((error: unknown) => {
+// In an in-app browser neither WebXR nor Quick Look usually works; offer the real browser first.
+offerOpenInBrowser().then(main).catch((error: unknown) => {
   setStatus(`Failed: ${error instanceof Error ? error.message : String(error)}`, true);
   console.error(error);
 });
