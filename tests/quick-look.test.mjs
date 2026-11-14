@@ -39,6 +39,18 @@ test('wall content is exported turned onto Quick Look\'s wall frame: front +Z â†
   assert.equal(mount.children[0].geometry, picture.geometry, 'geometry is shared, not copied');
 });
 
+test('wall-from-floor keeps the piece upright on a floor anchor, lifted to hanging height', () => {
+  const scene = new Scene();
+  const picture = new Mesh(new BoxGeometry(), new MeshStandardMaterial());
+  scene.add(picture);
+  const exported = forQuickLook(scene, 'wall-from-floor');
+  const mount = exported.children[0];
+  assert.deepEqual(mount.position.toArray(), [0, 1.45, 0]);
+  assert.deepEqual(mount.quaternion.toArray(), [0, 0, 0, 1], 'no rotation: front stays +Z, up stays +Y');
+  assert.equal(scene.children[0], picture, 'the live scene keeps its own object');
+  assert.deepEqual(usdzAnchoring('wall-from-floor').planeAnchoring, { alignment: 'horizontal' });
+});
+
 test('a pre-baked USDZ exists only for a successful, non-HTML response', () => {
   assert.equal(isPrebakedUsdzResponse(true, 'model/vnd.usdz+zip'), true);
   assert.equal(isPrebakedUsdzResponse(true, null), true); // Vite's dev server sends no type for .usdz.

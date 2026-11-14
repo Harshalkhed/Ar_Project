@@ -10,38 +10,56 @@ import { Group, Mesh, Scene, Texture, type Material, type Object3D } from 'three
 export { supportsQuickLook } from './quick-look-support.js';
 
 /**
+ * How a USDZ is anchored in Quick Look: on the floor, on a wall, or a wall piece mounted from the floor.
+ * The last is the fallback for walls the phone cannot detect (plain, light-coloured or dimly lit walls give
+ * camera-based detection almost nothing to track, while floors usually have texture): the piece is
+ * anchored to the floor, lifted to hanging height, and the person drags it back against the wall.
+ */
+export type QuickLookMount = PlacementSurface | 'wall-from-floor';
+
+/** Centre height for floor-mounted wall pieces: 1.45 m (57 in), the usual gallery hanging height. */
+export const WALL_HANGING_CENTRE_M = 1.45;
+
+/**
  * Exports `root` (as currently scaled/oriented) to USDZ bytes. Textures are capped at 1024px so big
  * GLBs stay phone-sized. The same function bakes the pre-built files (scripts/build-assets.mjs), so
  * pre-baked and on-device exports cannot drift apart.
  */
-export async function buildUsdzBytes(root: Scene, surface: PlacementSurface = 'floor'): Promise<Uint8Array<ArrayBuffer>> {
+export async function buildUsdzBytes(root: Scene, mount: QuickLookMount = 'floor'): Promise<Uint8Array<ArrayBuffer>> {
   root.updateMatrixWorld(true);
   preferJpegTextures(root);
-  return new USDZExporter().parseAsync(forQuickLook(root, surface), { quickLookCompatible: true, maxTextureSize: 1024, ar: usdzAnchoring(surface) });
+  return new USDZExporter().parseAsync(forQuickLook(root, mount), { quickLookCompatible: true, maxTextureSize: 1024, ar: usdzAnchoring(mount) });
 }
 
 /**
- * Quick Look's wall anchor is a horizontal plane turned onto the wall (Apple's ARKit docs): +Y points out
- * of the wall and -Z points up it. Confirmed on an iPhone 2026-11-14, where a +Z-facing picture stuck out
- * of the wall like a shelf with its face down. Our wall convention is +Z out, +Y up, so wall content is
- * exported inside a group turned -90° about X (+Z → +Y, +Y → -Z). The exporter writes only the scene's
- * children, so this works on a cheap clone (geometry and materials shared) and leaves the preview alone.
+ * The scene to export for a mount. Wall: Quick Look's wall anchor is a horizontal plane turned onto the
+ * wall (Apple's ARKit docs): +Y points out of the wall and -Z up it, confirmed on an iPhone 2026-11-14
+ * (a +Z-facing picture stuck out like a shelf, face down). Our wall convention is +Z out, +Y up, so wall
+ * content goes inside a group turned -90° about X (+Z → +Y, +Y → -Z). Wall from floor: content stays
+ * upright on a floor anchor, lifted so its centre (the origin, by the wall convention) hangs at
+ * {@link WALL_HANGING_CENTRE_M}. The exporter writes only the scene's children, so both work on a cheap
+ * clone (geometry and materials shared) and leave the live preview alone.
  */
-export function forQuickLook(root: Scene, surface: PlacementSurface): Scene {
-  if (surface !== 'wall') return root;
-  const turned = new Group();
-  turned.name = 'WallMount';
-  turned.rotation.x = -Math.PI / 2;
-  turned.add(...root.clone().children);
+export function forQuickLook(root: Scene, mount: QuickLookMount): Scene {
+  if (mount === 'floor') return root;
+  const holder = new Group();
+  if (mount === 'wall') {
+    holder.name = 'WallMount';
+    holder.rotation.x = -Math.PI / 2;
+  } else {
+    holder.name = 'FloorWallMount';
+    holder.position.y = WALL_HANGING_CENTRE_M;
+  }
+  holder.add(...root.clone().children);
   const scene = new Scene();
-  scene.add(turned);
+  scene.add(holder);
   scene.updateMatrixWorld(true);
   return scene;
 }
 
-/** Quick Look anchors floor content to horizontal planes and wall content to vertical ones. */
-export function usdzAnchoring(surface: PlacementSurface): { anchoring: { type: 'plane' }; planeAnchoring: { alignment: 'horizontal' | 'vertical' } } {
-  return { anchoring: { type: 'plane' }, planeAnchoring: { alignment: surface === 'wall' ? 'vertical' : 'horizontal' } };
+/** Quick Look anchors wall content to vertical planes and everything else to horizontal ones. */
+export function usdzAnchoring(mount: QuickLookMount): { anchoring: { type: 'plane' }; planeAnchoring: { alignment: 'horizontal' | 'vertical' } } {
+  return { anchoring: { type: 'plane' }, planeAnchoring: { alignment: mount === 'wall' ? 'vertical' : 'horizontal' } };
 }
 
 /**
@@ -65,12 +83,14 @@ export function preferJpegTextures(root: Object3D): void {
 }
 
 /** On-device export to a blob URL: the fallback when a project has no pre-baked USDZ. */
-export async function buildUsdzUrl(root: Scene, surface: PlacementSurface = 'floor'): Promise<string> {
-  return URL.createObjectURL(new Blob([await buildUsdzBytes(root, surface)], { type: 'model/vnd.usdz+zip' }));
+export async function buildUsdzUrl(root: Scene, mount: QuickLookMount = 'floor'): Promise<string> {
+  return URL.createObjectURL(new Blob([await buildUsdzBytes(root, mount)], { type: 'model/vnd.usdz+zip' }));
 }
 
-/** Pre-baked file name, next to the project's project.json. */
+/** Pre-baked file names, next to the project's project.json. */
 export const PREBAKED_USDZ = 'quicklook.usdz';
+export const PREBAKED_WALL_FROM_FLOOR_USDZ = 'quicklook-floor.usdz';
+export const prebakedUsdzName = (mount: QuickLookMount): string => (mount === 'wall-from-floor' ? PREBAKED_WALL_FROM_FLOOR_USDZ : PREBAKED_USDZ);
 
 /**
  * A dev server answers a missing file with its HTML page and a 200, so "exists" means a successful
@@ -80,9 +100,9 @@ export function isPrebakedUsdzResponse(ok: boolean, contentType: string | null):
   return ok && !(contentType ?? '').includes('text/html');
 }
 
-/** URL of the project's pre-baked USDZ, or null if there is none (or the check itself fails). */
-export async function findPrebakedUsdz(projectUrl: URL): Promise<string | null> {
-  const url = new URL(PREBAKED_USDZ, projectUrl);
+/** URL of the project's pre-baked USDZ for a mount, or null if there is none (or the check itself fails). */
+export async function findPrebakedUsdz(projectUrl: URL, mount: QuickLookMount = 'floor'): Promise<string | null> {
+  const url = new URL(prebakedUsdzName(mount), projectUrl);
   try {
     const response = await fetch(url, { method: 'HEAD' });
     return isPrebakedUsdzResponse(response.ok, response.headers.get('content-type')) ? url.href : null;
@@ -91,7 +111,14 @@ export async function findPrebakedUsdz(projectUrl: URL): Promise<string | null> 
   }
 }
 
-const BUTTON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="260" height="56"><rect width="260" height="56" rx="10" fill="#2a6df4"/><text x="130" y="35" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="18" font-weight="600" fill="#fff" text-anchor="middle">View in your room (AR)</text></svg>`;
+const escapeXml = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
+
+/** The button is an SVG image (Quick Look needs an <img> inside the link): filled for the main action, outlined for a secondary one. */
+function buttonSvg(label: string, secondary: boolean): string {
+  const width = 300;
+  const fill = secondary ? 'fill="#14161b" stroke="#8a8f99" stroke-width="1.5"' : 'fill="#2a6df4"';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="52"><rect x="1" y="1" width="${width - 2}" height="50" rx="10" ${fill}/><text x="${width / 2}" y="32" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="${secondary ? 15 : 18}" font-weight="600" fill="#fff" text-anchor="middle">${escapeXml(label)}</text></svg>`;
+}
 
 /**
  * Apple's documented Quick Look URL option `allowsContentScaling=0` turns off pinch-to-resize, so the
@@ -106,13 +133,13 @@ export function quickLookHref(usdzUrl: string): string {
  * person -- Safari will not honour a programmatic click after the seconds-long async export, so the
  * export and the launch are two separate taps. The visible button is the image itself.
  */
-export function createQuickLookLink(usdzUrl: string): HTMLAnchorElement {
+export function createQuickLookLink(usdzUrl: string, label = 'View in your room (AR)', secondary = false): HTMLAnchorElement {
   const link = document.createElement('a');
   link.rel = 'ar';
   link.href = quickLookHref(usdzUrl);
   const image = document.createElement('img');
-  image.src = `data:image/svg+xml;utf8,${encodeURIComponent(BUTTON_SVG)}`;
-  image.alt = 'View in your room (AR)';
+  image.src = `data:image/svg+xml;utf8,${encodeURIComponent(buttonSvg(label, secondary))}`;
+  image.alt = label;
   link.appendChild(image);
   return link;
 }

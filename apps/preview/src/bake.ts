@@ -2,7 +2,7 @@
 // AR Quick Look USDZ. It is not one of the site's pages and is not in the production build.
 import { placementSurfaceOf, validateProject, type ProjectDocument } from '@internal-webar/project-schema';
 import { ThreeRenderer } from '@internal-webar/renderer';
-import { buildUsdzBytes } from './quick-look.js';
+import { buildUsdzBytes, type QuickLookMount } from './quick-look.js';
 import { createObjectControl } from './scale-control.js';
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -17,7 +17,7 @@ async function fetchBytes(url: URL): Promise<Uint8Array> {
  * The USDZ webxr.html would export on an iPhone for this project before the person changes anything:
  * first scene, every object visible, real size, upright, at the origin.
  */
-export async function bakeUsdz(projectPath: string): Promise<Uint8Array> {
+export async function bakeUsdz(projectPath: string, mountOverride?: QuickLookMount): Promise<Uint8Array> {
   const url = new URL(projectPath, location.href);
   const project: unknown = JSON.parse(new TextDecoder().decode(await fetchBytes(url)));
   const issues = validateProject(project);
@@ -37,5 +37,5 @@ export async function bakeUsdz(projectPath: string): Promise<Uint8Array> {
   const control = createObjectControl(renderer, objectIds);
   control.resetOrientation();
   renderer.setAnchor(IDENTITY);
-  return buildUsdzBytes(renderer.scene, placementSurfaceOf(document));
+  return buildUsdzBytes(renderer.scene, mountOverride ?? placementSurfaceOf(document));
 }

@@ -260,6 +260,16 @@ The earlier tier-2 note said iOS room placement was unreachable without a paid S
 - **Tools and licences (build-time only, nothing ships):** `@gltf-transform/cli` (MIT) and `playwright` (Apache-2.0) as root dev dependencies; KTX-Software 4.4.2 (Apache-2.0, official signed Khronos installer). The Basis transcoder that does ship comes from three (MIT; Basis Universal, Apache-2.0).
 - **Known limitations / open question:** USDZ size. Committing the current files adds ~110 MB to git per bake (two identical 47 MB floorplan files, since `floorplan-image` uses the same model), and an iPhone downloads 47 MB on tapping AR for the floorplan. Converting the USDA geometry to binary USDC with Pixar's `usd-core` (Python, TOST-1.0 licence) is the likely fix; not yet decided. Also: the 2048 px cap has no 1024 px low-end variant yet; the baked file ignores the person's preview pinch size (Quick Look has its own pinch); `ar.html` still makes asset URIs absolute for its tracking engine, which fails the schema's relative-or-https rule on plain `http://localhost` (`webxr.ts` and `bake.ts` no longer do this).
 
+### 2026-11-14 — Wall pieces on walls the phone cannot detect
+
+**Problem (testers, 2026-11-14, on non-Pro iPhones, Pro iPhones and Android):** wall art would not place on white or light-coloured walls, or in low light. Camera-based plane detection (ARKit without LiDAR, ARCore) tracks visible detail, and a plain wall gives it almost none; Quick Look's detection is not ours to change.
+
+- **Decision (product owner): tips plus a floor fallback.** Wall pieces get a second way in that only needs the floor, which usually has texture: anchored to the floor, lifted so the piece's centre (its origin, by the wall convention) hangs at 1.45 m (57 in, the usual gallery height), and the person drags it back until it touches the wall.
+- **iPhone:** wall projects get a second pre-baked file, `quicklook-floor.usdz` (`forQuickLook(scene, 'wall-from-floor')`: upright, lifted 1.45 m, horizontal anchoring; the asset pipeline bakes it for every `placement.surface: "wall"` project), offered as an outlined second button, "Can't find the wall? Place from the floor". The status gives tips: good light, 1–2 m away, a sticky note or tape on a plain wall.
+- **Android:** if no wall hit arrives 8 s into a session, floor hits are accepted for wall pieces too: `floorMountedWallAnchor` lifts the piece to 1.45 m and turns it about the vertical to face the viewer (from the viewer pose).
+- **Trade-off:** the fallback is aligned by eye, so the piece can sit a few centimetres off the wall and is not attached to it.
+- **Open:** that LiDAR Pro iPhones also failed suggests more than detection alone (perhaps low light affecting Quick Look's tracking); the floor fallback sidesteps it either way. Not yet re-tested on the testers' phones.
+
 ### 2026-11-14 — No dead end when a phone has no AR
 
 **Existing behaviour:** `webxr.html` threw before loading anything when neither WebXR AR nor Quick Look was available, leaving a black page with a red "supports neither" error. On 2026-11-14 the product owner's Android phone, and others they shared the wall-art link with, hit exactly this: Chrome reports no `immersive-ar` support when Google Play Services for AR (ARCore) is missing or the phone is not ARCore-certified.

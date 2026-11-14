@@ -10,9 +10,9 @@ import { Box3, Color, HemisphereLight, Mesh, MeshBasicMaterial, PerspectiveCamer
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { offerOpenInBrowser } from './in-app-browser.js';
 import { createKtx2Loader } from './ktx2.js';
-import { buildUsdzUrl, createQuickLookLink, findPrebakedUsdz, supportsQuickLook } from './quick-look.js';
+import { buildUsdzUrl, createQuickLookLink, findPrebakedUsdz, supportsQuickLook, WALL_HANGING_CENTRE_M } from './quick-look.js';
 import { createObjectControl, setUpTransformGestures, type ObjectControl } from './scale-control.js';
-import { anchorFor } from './surface.js';
+import { anchorFor, floorMountedWallAnchor, surfaceOf } from './surface.js';
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -67,7 +67,10 @@ async function main(): Promise<void> {
   const control = createObjectControl(renderer, objectIds);
   if (scaleBadge) scaleBadge.textContent = 'Real size';
   if (surface === 'floor') setUpTransformGestures(canvas, control, { scale: false, tilt: false });
-  if (arMode === 'quicklook') return startQuickLook(gl, renderer, control, surface, await findPrebakedUsdz(url));
+  if (arMode === 'quicklook') {
+    const fromFloor = surface === 'wall' ? await findPrebakedUsdz(url, 'wall-from-floor') : null;
+    return startQuickLook(gl, renderer, control, surface, await findPrebakedUsdz(url), fromFloor);
+  }
   if (arMode === 'none') return showWithoutAr(gl, renderer, surface);
 
   const stage = new Scene();
@@ -117,6 +120,7 @@ async function main(): Promise<void> {
   const WALL_HINT_AFTER_MS = 8000;
   let searchingSince: number | null = null;
   let wallHintShown = false;
+  let acceptFloorForWall = false;
   gl.setAnimationLoop((time, frame) => {
     if (frame) {
       searchingSince ??= time;
@@ -131,6 +135,7 @@ async function main(): Promise<void> {
           hitTestSource = null;
           searchingSince = null;
           wallHintShown = false;
+          acceptFloorForWall = false;
         });
         hitTestSourceRequested = true;
       }
@@ -138,9 +143,12 @@ async function main(): Promise<void> {
       // Only hits on the project's surface count (a wall piece ignores the floor and vice versa).
       if (hitTestSource && referenceSpace) {
         candidate = null;
+        const viewer = frame.getViewerPose(referenceSpace)?.transform.position;
         for (const hit of frame.getHitTestResults(hitTestSource)) {
           const matrix = hit.getPose(referenceSpace)?.transform.matrix;
-          const anchor = matrix && anchorFor(matrix, surface);
+          let anchor = matrix && anchorFor(matrix, surface);
+          // Wall not detectable (plain or dim wall): once offered, a floor tap hangs it at 1.45 m, facing you.
+          if (matrix && !anchor && acceptFloorForWall && viewer && surfaceOf(matrix) === 'floor') anchor = floorMountedWallAnchor(matrix, viewer, WALL_HANGING_CENTRE_M);
           if (!matrix || !anchor) continue;
           candidate = anchor;
           reticle.matrix.fromArray(matrix); // The ring lies flat on the surface (its +Y is the normal).
@@ -150,7 +158,8 @@ async function main(): Promise<void> {
         if (candidate) wallHintShown = true; // A wall was found; no hint needed this session.
         if (surface === 'wall' && !wallHintShown && time - searchingSince > WALL_HINT_AFTER_MS) {
           wallHintShown = true;
-          setStatus('No wall found yet. Plain walls are hard to detect: stand 1–2 m away, aim at a part with some texture, a picture or a corner, and move the phone slowly sideways.');
+          acceptFloorForWall = true;
+          setStatus('No wall found yet: plain or dim walls are hard to detect. Or tap the floor right in front of the wall: the piece goes up at hanging height (1.45 m), facing you.');
         }
       }
     }
@@ -232,13 +241,23 @@ function showWithoutAr(gl: WebGLRenderer, renderer: ThreeRenderer, surface: Plac
  * (scripts/build-assets.mjs) the AR button is ready at once; without one, the scene is exported on the
  * phone first (two taps, up to ~30 s for big models).
  */
-function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: ObjectControl, surface: PlacementSurface, prebakedUsdz: string | null): void {
+function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: ObjectControl, surface: PlacementSurface, prebakedUsdz: string | null, prebakedFromFloorUsdz: string | null): void {
   const where = surface === 'wall' ? 'a wall' : 'the floor';
   const handling = surface === 'wall' ? 'drag to slide it along the wall' : 'drag to move it, twist to turn it';
   const slot = startPreview(gl, renderer);
+  slot.style.flexDirection = 'column';
+  slot.style.alignItems = 'center';
+  slot.style.gap = '10px';
+  // Wall pieces: phones find plain, light or dimly lit walls hard to detect, so offer tips and a second
+  // way in that only needs the floor.
+  const FROM_FLOOR_LABEL = "Can't find the wall? Place from the floor";
+  const wallTips =
+    'Point at a wall in good light, 1–2 m away. Plain or light walls are hard for phones to find: a sticky note or a strip of tape on the wall helps. ' +
+    `Or use "Place from the floor": it stands at hanging height (1.45 m); drag it back until it touches the wall.`;
   if (prebakedUsdz) {
     slot.appendChild(createQuickLookLink(prebakedUsdz));
-    setStatus(`Tap "View in your room (AR)", then point at ${where}. It appears at real size; ${handling}.`);
+    if (surface === 'wall' && prebakedFromFloorUsdz) slot.appendChild(createQuickLookLink(prebakedFromFloorUsdz, FROM_FLOOR_LABEL, true));
+    setStatus(surface === 'wall' ? `Real size. ${wallTips}` : `Tap "View in your room (AR)", then point at ${where}. It appears at real size; ${handling}.`);
     return;
   }
   const prepare = document.createElement('button');
@@ -250,7 +269,8 @@ function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: Obj
     try {
       control.resetOrientation(); // export upright at real size, not mid-spin
       slot.replaceChildren(createQuickLookLink(await buildUsdzUrl(renderer.scene, surface)));
-      setStatus(`Ready. Tap "View in your room (AR)", then point at ${where}.`);
+      if (surface === 'wall') slot.appendChild(createQuickLookLink(await buildUsdzUrl(renderer.scene, 'wall-from-floor'), FROM_FLOOR_LABEL, true));
+      setStatus(surface === 'wall' ? `Ready. ${wallTips}` : `Ready. Tap "View in your room (AR)", then point at ${where}.`);
     } catch (error) {
       prepare.disabled = false;
       setStatus(`AR export failed: ${error instanceof Error ? error.message : String(error)}`, true);

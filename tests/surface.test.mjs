@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { anchorFor, surfaceOf, wallAnchor } from '../apps/preview/dist/surface.js';
+import { anchorFor, floorMountedWallAnchor, surfaceOf, wallAnchor } from '../apps/preview/dist/surface.js';
 
 /** Column-major pose with the given X, Y (= surface normal), Z axes and position. */
 const pose = (x, y, z, p) => [...x, 0, ...y, 0, ...z, 0, ...p, 1];
@@ -34,6 +34,13 @@ test('on a slightly leaning wall the anchor lies flat on it with no sideways rol
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   for (const [a, b, label] of [[x, y, 'x·y'], [y, z, 'y·z'], [x, z, 'x·z']]) assert.ok(Math.abs(dot(a, b)) < 1e-9, label);
   for (const v of [x, y, z]) assert.ok(Math.abs(dot(v, v) - 1) < 1e-9, 'unit length');
+});
+
+test('floor-mounted wall anchor: lifted to hanging height, upright, facing the viewer', () => {
+  // Floor hit at (1, 0, -2); viewer standing at (1, 1.6, 0), i.e. straight along +Z from the hit.
+  close(floorMountedWallAnchor(floorHit.map((v, i) => (i === 12 ? 1 : i === 14 ? -2 : v)), { x: 1, y: 1.6, z: 0 }, 1.45), pose([1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1.45, -2]), 'viewer along +Z');
+  // Viewer off to the +X side: the piece turns to face +X, still upright.
+  close(floorMountedWallAnchor(floorHit, { x: 5.5, y: 1.6, z: -1 }, 1.45), pose([0, 0, -1], [0, 1, 0], [1, 0, 0], [0.5, 1.45, -1]), 'viewer along +X');
 });
 
 test('anchorFor only accepts hits on the project surface', () => {
