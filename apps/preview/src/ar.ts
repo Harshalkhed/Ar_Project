@@ -22,6 +22,8 @@ const startOverlay = document.querySelector<HTMLDivElement>('#start');
 const startButton = document.querySelector<HTMLButtonElement>('#start-button');
 const resetButton = document.querySelector<HTMLButtonElement>('#reset-button');
 const scaleBadge = document.querySelector<HTMLDivElement>('#scale-badge');
+/** `?debug` shows measured numbers for device-test reports (Architecture.md); not product UI. */
+const debugElement = new URLSearchParams(location.search).has('debug') ? document.querySelector<HTMLPreElement>('#debug') : null;
 
 function setStatus(message: string, state: 'info' | 'error' | 'tracking' = 'info'): void {
   if (!statusElement) return;
@@ -107,8 +109,17 @@ async function main(): Promise<void> {
 
   await startCameraPassthrough(cameraVideo);
 
+  // Debug counters. Detection runs on the main thread in the same rAF as rendering, so `frames`
+  // per second is the real end-to-end rate and `poses` per second is how many of those detected.
+  let frames = 0;
+  let poses = 0;
+  let searchStartedAt = performance.now();
+  let firstPoseMs: number | undefined;
+
   const applyPose = (pose: TargetPose | undefined): void => {
     if (!pose) return;
+    poses += 1;
+    firstPoseMs ??= performance.now() - searchStartedAt;
     renderer.setAnchor(smoother.update(pose));
   };
   const applyProjection = (projection: CameraProjection | undefined): void => {
@@ -121,6 +132,7 @@ async function main(): Promise<void> {
   const runtime = new RuntimeCore(provider, (event) => {
     switch (event.type) {
       case 'runtime_initialized':
+        searchStartedAt = performance.now();
         setStatus('Point the camera at the target.');
         break;
       case 'target_found':
@@ -150,11 +162,29 @@ async function main(): Promise<void> {
     smoother.reset();
     control.setScale(autoScale);
     control.resetOrientation();
+    searchStartedAt = performance.now();
+    firstPoseMs = undefined;
     setStatus('Point the camera at the target.');
   });
   setUpTransformGestures(canvas, control);
 
-  gl.setAnimationLoop(() => gl.render(stage, camera));
+  if (debugElement) {
+    debugElement.hidden = false;
+    setInterval(() => {
+      const found = firstPoseMs === undefined ? 'searching' : `${(firstPoseMs / 1000).toFixed(1)} s`;
+      debugElement.textContent =
+        `fps ${frames} · poses/s ${poses} · first pose ${found}\n` +
+        `camera ${cameraVideo.videoWidth}×${cameraVideo.videoHeight} · screen ${window.innerWidth}×${window.innerHeight} @${window.devicePixelRatio.toFixed(1)}\n` +
+        (/(?:Chrome|Version)\/\d+/.exec(navigator.userAgent)?.[0] ?? '');
+      frames = 0;
+      poses = 0;
+    }, 1000);
+  }
+
+  gl.setAnimationLoop(() => {
+    frames += 1;
+    gl.render(stage, camera);
+  });
   await runtime.start(document);
 }
 

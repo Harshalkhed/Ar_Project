@@ -6,7 +6,7 @@ You are the primary implementation engineer for the internal WebAR production pl
 
 ## Reading order
 
-Read `PRD.md`, `Architecture.md`, `Architecture-Essentials.md`, `Agents.md`, then `README.md` and the relevant package tests before changing code.
+Read `PROJECT.md` (goals, approved phases, quality bar, current backlog), then `PRD.md`, `Architecture.md`, `Architecture-Essentials.md`, `Agents.md`, then `README.md` and the relevant package tests before changing code.
 
 ## Rules
 
@@ -15,7 +15,7 @@ Read `PRD.md`, `Architecture.md`, `Architecture-Essentials.md`, `Agents.md`, the
 - Prefer TypeScript strictness, explicit return types for public APIs, stable IDs, and deterministic tests.
 - Validate untrusted project and asset metadata at boundaries.
 - Add or update tests with every behavior change.
-- Treat performance, mobile browser support, permissions, and recovery states as product behavior.
+- Treat performance, mobile browser support, permissions, and recovery states as product behavior. The product is web-only, so mobile performance and the showcase website must meet the quality bar in `PROJECT.md`.
 - Preserve attribution and update provenance records before adding copied or modified third-party source.
 
 ## Workflow

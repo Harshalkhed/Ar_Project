@@ -4,10 +4,19 @@ This repository is our own internal WebAR production platform. It is not a fork 
 
 ## Current stage
 
-Stage 0/1: product and architecture foundation, versioned project schema, runtime contracts, an in-house image-tracking engine (no vendor AR SDK), and a Three.js renderer that loads a scene's GLB objects. `apps/preview` has two pages: a desktop 3D viewer, and `ar.html`, a real camera image-tracking test page — confirmed working on a real iPhone (detection, pose smoothing, pinch-to-scale, Reset). This is image-anchored placement, not room-fixed placement; see the two-tier plan in `Architecture.md`.
+Stage 1, a working WebAR platform verified on real devices. The product goals, approved phases and the mobile/website quality bar are in `PROJECT.md`. Read it first.
+
+| Capability | Page | Android (Chrome) | iPhone (Safari) |
+|---|---|---|---|
+| Image tracking (in-house engine, no vendor SDK) | `ar.html` | Not yet device-tested | ✅ Verified 2026-09-23 |
+| Room placement | `webxr.html` | ✅ WebXR hit-test, verified 2026-09-28 | ✅ AR Quick Look, verified 2026-10-03 |
+| Capability check | `check.html` | ✅ | — |
+
+Also included: a versioned project schema, runtime contracts and a Three.js renderer that loads a scene's GLB objects. The site is deployed on Vercel. Image tracking is image-anchored, not room-fixed; see the two-tier plan in `Architecture.md`.
 
 ## Documents
 
+- `PROJECT.md` — product goals, approved phases, verified device status, mobile and website quality bar, next 30 days
 - `PRD.md` — product requirements and roadmap
 - `Architecture.md` — technical architecture and research record
 - `Architecture-Essentials.md` — non-negotiable rules
@@ -44,6 +53,7 @@ Vercel builds and serves the site using `vercel.json`. Deploy from the repositor
 1. Print the project's target image (or display it full-screen on another device), and open the deployed `.../ar.html` URL (or `?project=projects/<name>/project.json` for a different project) on a phone.
 2. Tap "Point camera at target", allow camera access, then point the camera at the target. Found content stays visible (and can be pinch-to-scale resized) even after you look away — tap **Reset** to track again from scratch.
 3. If it does not track: the status bar shows a specific reason (e.g. `[permission_denied]`, `[unsupported]`) rather than a blank screen — report what it says.
+4. For a device-test report, open `ar.html?debug`: a readout shows frames per second, poses per second, time to first pose (Reset restarts the timer), camera and screen size, and the browser version.
 
 This is **image-anchored** placement: content stays attached to wherever the target currently is on screen, not fixed at a point in the room. Regenerate a different target image with `node scripts/generate-target-image.mjs <out.png> [width] [height] [seed]`.
 
@@ -59,8 +69,10 @@ iOS test: open `https://<site>/webxr.html?project=projects/floorplan/project.jso
 
 ## Next milestone
 
-Two tracks, per the two-tier decision in `Architecture.md`:
+See `PROJECT.md` → "Next 30 days" for the full, approved backlog. Engineering highlights:
 
-1. **Room-fixed placement behind `TrackingProvider`** (it works today as a standalone page on Android, and via Quick Look on iOS). `'webxr'` is already a valid schema `tracking.type`.
-2. **Mobile performance for the existing image-tracking engine.** Move detection into a Web Worker, add frame-to-frame (optical flow) tracking between full re-detections, and calibrate or better-approximate camera intrinsics. See the "known limitations" list in `Architecture.md`'s in-house-engine decision entry.
-
+1. **Mobile performance for the image-tracking engine.** Move detection into a Web Worker, add frame-to-frame (optical flow) tracking between full re-detections, and calibrate or better-approximate camera intrinsics. See the "known limitations" list in `Architecture.md`'s in-house-engine decision entry.
+2. **Asset pipeline.** Compress GLBs (meshopt/KTX2) and ship a pre-baked USDZ per project so iPhone Quick Look opens instantly instead of exporting on the device.
+3. **Wall-art placement.** Vertical planes via WebXR `plane-detection` on Android, and vertical placement in Quick Look on iOS.
+4. **Room-fixed placement behind `TrackingProvider`** (it works today as a standalone page). `'webxr'` is already a valid schema `tracking.type`.
+5. **Showcase website** to the mobile quality bar in `PROJECT.md`.
