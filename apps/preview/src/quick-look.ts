@@ -1,6 +1,6 @@
 import { USDZExporter } from 'three/addons/exporters/USDZExporter.js';
 import type { PlacementSurface } from '@internal-webar/project-schema';
-import { Mesh, Texture, type Material, type Object3D } from 'three';
+import { Group, Mesh, Scene, Texture, type Material, type Object3D } from 'three';
 
 /**
  * iOS/iPadOS Safari has no WebXR, so room placement there goes through AR Quick Look, Apple's own
@@ -14,10 +14,29 @@ export { supportsQuickLook } from './quick-look-support.js';
  * GLBs stay phone-sized. The same function bakes the pre-built files (scripts/build-assets.mjs), so
  * pre-baked and on-device exports cannot drift apart.
  */
-export async function buildUsdzBytes(root: Object3D, surface: PlacementSurface = 'floor'): Promise<Uint8Array<ArrayBuffer>> {
+export async function buildUsdzBytes(root: Scene, surface: PlacementSurface = 'floor'): Promise<Uint8Array<ArrayBuffer>> {
   root.updateMatrixWorld(true);
   preferJpegTextures(root);
-  return new USDZExporter().parseAsync(root, { quickLookCompatible: true, maxTextureSize: 1024, ar: usdzAnchoring(surface) });
+  return new USDZExporter().parseAsync(forQuickLook(root, surface), { quickLookCompatible: true, maxTextureSize: 1024, ar: usdzAnchoring(surface) });
+}
+
+/**
+ * Quick Look's wall anchor is a horizontal plane turned onto the wall (Apple's ARKit docs): +Y points out
+ * of the wall and -Z points up it. Confirmed on an iPhone 2026-11-14, where a +Z-facing picture stuck out
+ * of the wall like a shelf with its face down. Our wall convention is +Z out, +Y up, so wall content is
+ * exported inside a group turned -90° about X (+Z → +Y, +Y → -Z). The exporter writes only the scene's
+ * children, so this works on a cheap clone (geometry and materials shared) and leaves the preview alone.
+ */
+export function forQuickLook(root: Scene, surface: PlacementSurface): Scene {
+  if (surface !== 'wall') return root;
+  const turned = new Group();
+  turned.name = 'WallMount';
+  turned.rotation.x = -Math.PI / 2;
+  turned.add(...root.clone().children);
+  const scene = new Scene();
+  scene.add(turned);
+  scene.updateMatrixWorld(true);
+  return scene;
 }
 
 /** Quick Look anchors floor content to horizontal planes and wall content to vertical ones. */
@@ -46,7 +65,7 @@ export function preferJpegTextures(root: Object3D): void {
 }
 
 /** On-device export to a blob URL: the fallback when a project has no pre-baked USDZ. */
-export async function buildUsdzUrl(root: Object3D, surface: PlacementSurface = 'floor'): Promise<string> {
+export async function buildUsdzUrl(root: Scene, surface: PlacementSurface = 'floor'): Promise<string> {
   return URL.createObjectURL(new Blob([await buildUsdzBytes(root, surface)], { type: 'model/vnd.usdz+zip' }));
 }
 
