@@ -8,6 +8,9 @@ const DEFAULT_PROJECT = 'projects/office-chair/project.json';
 
 const statusElement = document.querySelector<HTMLParagraphElement>('#status');
 const canvas = document.querySelector<HTMLCanvasElement>('#viewport');
+// The AR button opens room placement for the same project as this viewer.
+const arLink = document.querySelector<HTMLAnchorElement>('#ar-link');
+if (arLink) arLink.search = location.search;
 
 function setStatus(message: string, isError = false): void {
   if (!statusElement) return;

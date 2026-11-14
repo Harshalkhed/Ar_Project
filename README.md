@@ -42,7 +42,7 @@ Each package builds to its own `packages/<name>/dist` through TypeScript project
 
 ## Preview and hosting
 
-`apps/preview` is a Vite app that validates a project, loads its first scene through `ThreeRenderer`, reveals the scene objects, and frames them with orbit controls (drag to orbit; pinch or scroll to zoom). It loads `projects/office-chair/project.json` by default; pass another same-origin project with `?project=projects/<name>/project.json`. Projects and their assets live in `apps/preview/public/projects/<name>/` and are published as-is, so only put publishable assets there. Failures are shown in the status bar.
+`apps/preview` is a Vite app that validates a project, loads its first scene through `ThreeRenderer`, reveals the scene objects, and frames them with orbit controls (drag to orbit; pinch or scroll to zoom). Its **View in your room (AR)** button opens room placement (`webxr.html`) for the same project. It loads `projects/office-chair/project.json` by default; pass another same-origin project with `?project=projects/<name>/project.json`. Projects and their assets live in `apps/preview/public/projects/<name>/` and are published as-is, so only put publishable assets there. Failures are shown in the status bar.
 
 ## Asset pipeline
 
@@ -70,12 +70,12 @@ This is **image-anchored** placement: content stays attached to wherever the tar
 
 | Device | What happens | Notes |
 |---|---|---|
-| Android + Chrome + ARCore | WebXR hit-test placement; the model stays fixed in the room. Drag to rotate/tilt (with momentum), pinch/scroll to resize. | Needs Google Play Services for AR. Check a device at `check.html`. |
-| iPhone / iPad Safari | Same drag/pinch preview, plus **View in your room (AR)**, which hands off to Apple's AR Quick Look (native placement, pinch, rotate). With a pre-baked `quicklook.usdz` the button is ready at once; without one, **Prepare AR view** exports on the phone first. | iOS has no WebXR. Quick Look is Apple's own viewer, not a vendor SDK. |
+| Android + Chrome + ARCore | WebXR hit-test placement at **real size**; the model stays fixed in the room. Tap another spot on the floor to move it, drag to turn it. No resizing. | Needs Google Play Services for AR. Check a device at `check.html`. |
+| iPhone / iPad Safari | A drag-to-turn preview at real size, plus **View in your room (AR)**, which hands off to Apple's AR Quick Look at real size (drag to move, twist to turn; pinch-to-resize is turned off). With a pre-baked `quicklook.usdz` the button is ready at once; without one, **Prepare AR view** exports on the phone first. | iOS has no WebXR. Quick Look is Apple's own viewer, not a vendor SDK. |
 | Anything else | A visible "supports neither" message. | |
 | Inside Instagram, Facebook, WhatsApp, LinkedIn and other apps | An **Open in browser** screen first (Android: **Open in Chrome**; iPhone: steps plus **Copy link**), with **Continue here anyway**. `ar.html` shows it too. | In-app browsers usually block the camera and AR. |
 
-iOS test: open `https://<site>/webxr.html?project=projects/floorplan/project.json` in **Safari** (Chrome on iPhone is the same WebKit engine; Quick Look works from Safari). Tap **View in your room (AR)**. A pre-baked file is placed at the page's default size (pinch in Quick Look to resize); the on-device fallback (**Prepare AR view**, then the AR button) bakes in the current `%` size instead. `?quicklook` forces this path on any browser to test the preview and export without an iPhone. Image tracking (`ar.html`) already works on iPhone/iPad.
+iOS test: open `https://<site>/webxr.html?project=projects/floorplan/project.json` in **Safari** (Chrome on iPhone is the same WebKit engine; Quick Look works from Safari). Tap **View in your room (AR)**. Both the pre-baked file and the on-device fallback (**Prepare AR view**, then the AR button) place the model at real size, which comes from the project's own transform in metres (e.g. the office chair is 1.16 m tall), so that transform must be right for each product. `?quicklook` forces this path on any browser to test the preview and export without an iPhone. Image tracking (`ar.html`) already works on iPhone/iPad.
 
 ## Next milestone
 
