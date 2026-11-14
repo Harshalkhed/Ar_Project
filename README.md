@@ -72,7 +72,7 @@ This is **image-anchored** placement: content stays attached to wherever the tar
 |---|---|---|
 | Android + Chrome + ARCore | WebXR hit-test placement at **real size**; the model stays fixed in the room. Tap another spot on the floor to move it, drag to turn it. No resizing. | Needs Google Play Services for AR. Check a device at `check.html`. |
 | iPhone / iPad Safari | A drag-to-turn preview at real size, plus **View in your room (AR)**, which hands off to Apple's AR Quick Look at real size (drag to move, twist to turn; pinch-to-resize is turned off). With a pre-baked `quicklook.usdz` the button is ready at once; without one, **Prepare AR view** exports on the phone first. | iOS has no WebXR. Quick Look is Apple's own viewer, not a vendor SDK. |
-| Anything else | A visible "supports neither" message. | |
+| No AR available (e.g. an Android phone without Google Play Services for AR, or a desktop) | The 3D view still loads, with a plain explanation. On Android: a **Get Google Play Services for AR** button (install or update it, then reload). | Phones that are not ARCore-certified cannot install it, and no website can do room placement on them; `ar.html` (brochure tracking) still works there. |
 | Wall art (`"placement": { "surface": "wall" }` in the project) | Same pages, but placed on a wall: Android shows the reticle only on walls and hangs the piece upright where you tap (tap again to move it); iPhone Quick Look anchors it to a wall. No turning or resizing. Try `webxr.html?project=projects/wall-art/project.json`. | The placeholder piece comes from `node scripts/generate-wall-art.mjs`. |
 | Inside Instagram, Facebook, WhatsApp, LinkedIn and other apps | An **Open in browser** screen first (Android: **Open in Chrome**; iPhone: steps plus **Copy link**), with **Continue here anyway**. `ar.html` shows it too. | In-app browsers usually block the camera and AR. |
 
@@ -84,6 +84,6 @@ See `PROJECT.md` → "Next 30 days" for the full, approved backlog. Engineering 
 
 1. **Mobile performance for the image-tracking engine.** Detection now runs in a Web Worker, with optical-flow tracking between detections (2026-11-14). Still open: measuring both on a phone, and calibrating or better approximating camera intrinsics. See the "known limitations" list in `Architecture.md`'s in-house-engine decision entry.
 2. **Asset pipeline.** Built 2026-11-14 (see "Asset pipeline" above). Still open: USDZ files are large because three's exporter writes text geometry (floorplan 47 MB); see `Architecture.md`.
-3. **Wall-art placement.** Built 2026-11-14 with a placeholder piece (`projects/wall-art`). Still open: confirming on an iPhone that Quick Look hangs it facing out of the wall, and on an Android phone that Chrome reports walls.
+3. **Wall-art placement.** Built 2026-11-14 with a placeholder piece (`projects/wall-art`); verified on iPhone (Safari and Chrome). Still open: an ARCore-certified Android phone to confirm Chrome reports walls.
 4. **Room-fixed placement behind `TrackingProvider`** (it works today as a standalone page). `'webxr'` is already a valid schema `tracking.type`.
 5. **Showcase website** to the mobile quality bar in `PROJECT.md`.

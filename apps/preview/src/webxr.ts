@@ -36,9 +36,9 @@ async function main(): Promise<void> {
   // `?quicklook` forces the iOS path (preview + USDZ export) on any browser, for testing without an iPhone.
   const forceQuickLook = new URLSearchParams(location.search).has('quicklook');
   const webxrSupported = !forceQuickLook && Boolean(navigator.xr) && (await navigator.xr!.isSessionSupported('immersive-ar'));
-  if (!webxrSupported && !forceQuickLook && !supportsQuickLook()) {
-    throw new Error('This browser/device supports neither WebXR AR (Android Chrome) nor AR Quick Look (iPhone/iPad Safari). In-app browsers (Instagram, Slack, etc.) usually block both -- open this link in Safari or Chrome.');
-  }
+  // No AR at all (e.g. an Android phone without Google Play Services for AR) still gets the 3D view and
+  // a clear reason, never a dead end.
+  const arMode: 'webxr' | 'quicklook' | 'none' = webxrSupported ? 'webxr' : forceQuickLook || supportsQuickLook() ? 'quicklook' : 'none';
 
   const url = new URL(new URLSearchParams(location.search).get('project') ?? 'projects/office-chair/project.json', location.href);
   const project: unknown = JSON.parse(new TextDecoder().decode(await fetchBytes(url)));
@@ -67,7 +67,8 @@ async function main(): Promise<void> {
   const control = createObjectControl(renderer, objectIds);
   if (scaleBadge) scaleBadge.textContent = 'Real size';
   if (surface === 'floor') setUpTransformGestures(canvas, control, { scale: false, tilt: false });
-  if (!webxrSupported) return startQuickLook(gl, renderer, control, surface, await findPrebakedUsdz(url));
+  if (arMode === 'quicklook') return startQuickLook(gl, renderer, control, surface, await findPrebakedUsdz(url));
+  if (arMode === 'none') return showWithoutAr(gl, renderer, surface);
 
   const stage = new Scene();
   stage.add(new HemisphereLight(0xffffff, 0x444444, 2), renderer.scene); // PBR materials render black with no light.
@@ -111,8 +112,14 @@ async function main(): Promise<void> {
   });
   stage.add(controller);
 
-  gl.setAnimationLoop((_time, frame) => {
+  // Plain painted walls give ARCore few features to detect, so a wall search can stall; after a while
+  // without any wall hit, say how to help it rather than leave people waiting.
+  const WALL_HINT_AFTER_MS = 8000;
+  let searchingSince: number | null = null;
+  let wallHintShown = false;
+  gl.setAnimationLoop((time, frame) => {
     if (frame) {
+      searchingSince ??= time;
       const referenceSpace = gl.xr.getReferenceSpace();
       const session = gl.xr.getSession();
       if (!hitTestSourceRequested && session && referenceSpace) {
@@ -122,6 +129,8 @@ async function main(): Promise<void> {
         session.addEventListener('end', () => {
           hitTestSourceRequested = false;
           hitTestSource = null;
+          searchingSince = null;
+          wallHintShown = false;
         });
         hitTestSourceRequested = true;
       }
@@ -138,6 +147,11 @@ async function main(): Promise<void> {
           break;
         }
         reticle.visible = candidate !== null;
+        if (candidate) wallHintShown = true; // A wall was found; no hint needed this session.
+        if (surface === 'wall' && !wallHintShown && time - searchingSince > WALL_HINT_AFTER_MS) {
+          wallHintShown = true;
+          setStatus('No wall found yet. Plain walls are hard to detect: stand 1–2 m away, aim at a part with some texture, a picture or a corner, and move the phone slowly sideways.');
+        }
       }
     }
     gl.render(stage, camera);
@@ -153,14 +167,11 @@ offerOpenInBrowser().then(main).catch((error: unknown) => {
 });
 
 /**
- * iOS fallback: a Sketchfab-style preview (drag to turn) plus a hand-off to AR Quick Look at real size.
- * With a pre-baked USDZ (scripts/build-assets.mjs) the AR button is ready at once; without one, the
- * scene is exported on the phone first (two taps, up to ~30 s for big models).
+ * A 3D view of the scene (Sketchfab-style, drag to turn floor pieces) with a bottom slot for buttons,
+ * kept just above the status text. Used before Quick Look and when no AR is available at all.
  */
-function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: ObjectControl, surface: PlacementSurface, prebakedUsdz: string | null): void {
-  const where = surface === 'wall' ? 'a wall' : 'the floor';
-  const handling = surface === 'wall' ? 'drag to slide it along the wall' : 'drag to move it, twist to turn it';
-  renderer.setAnchor(IDENTITY); // visible, at the origin, for both the preview and the export
+function startPreview(gl: WebGLRenderer, renderer: ThreeRenderer): HTMLDivElement {
+  renderer.setAnchor(IDENTITY); // visible, at the origin, for both the preview and any export
   const stage = new Scene();
   stage.background = new Color(0x20232a);
   stage.add(new HemisphereLight(0xffffff, 0x444444, 2), renderer.scene);
@@ -190,6 +201,41 @@ function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: Obj
   if (statusElement) {
     new ResizeObserver(() => (slot.style.bottom = `calc(${statusElement.offsetHeight + 24}px + env(safe-area-inset-bottom))`)).observe(statusElement);
   }
+  return slot;
+}
+
+/** Google Play Services for AR (ARCore), which Chrome needs for WebXR AR on Android. */
+const ARCORE_PLAY_STORE = 'https://play.google.com/store/apps/details?id=com.google.ar.core';
+
+/**
+ * No WebXR AR and no Quick Look: show the 3D view anyway, say why AR is missing, and on Android point
+ * to the one thing that can fix it (Google Play Services for AR; phones that are not ARCore-certified
+ * cannot install it, and no website can do room placement on them).
+ */
+function showWithoutAr(gl: WebGLRenderer, renderer: ThreeRenderer, surface: PlacementSurface): void {
+  const slot = startPreview(gl, renderer);
+  const meanwhile = surface === 'floor' ? 'Meanwhile, drag to turn the 3D model.' : 'Meanwhile, here is the 3D model.';
+  if (/Android/.test(navigator.userAgent)) {
+    const link = document.createElement('a');
+    link.href = ARCORE_PLAY_STORE;
+    link.textContent = 'Get Google Play Services for AR';
+    link.style.cssText = 'display:block;min-height:48px;box-sizing:border-box;padding:13px 24px;border-radius:10px;background:#2a6df4;color:#fff;font:600 17px/22px system-ui,sans-serif;text-decoration:none';
+    slot.appendChild(link);
+    setStatus(`AR isn't available in Chrome on this phone. It needs Google Play Services for AR: install or update it, then reload this page. If the Play Store says your phone isn't compatible, AR can't run on it. ${meanwhile}`);
+  } else {
+    setStatus(`AR isn't available in this browser. Open this link on an iPhone (Safari or Chrome) or on an Android phone with Google Play Services for AR. ${meanwhile}`);
+  }
+}
+
+/**
+ * iOS: the 3D preview plus a hand-off to AR Quick Look at real size. With a pre-baked USDZ
+ * (scripts/build-assets.mjs) the AR button is ready at once; without one, the scene is exported on the
+ * phone first (two taps, up to ~30 s for big models).
+ */
+function startQuickLook(gl: WebGLRenderer, renderer: ThreeRenderer, control: ObjectControl, surface: PlacementSurface, prebakedUsdz: string | null): void {
+  const where = surface === 'wall' ? 'a wall' : 'the floor';
+  const handling = surface === 'wall' ? 'drag to slide it along the wall' : 'drag to move it, twist to turn it';
+  const slot = startPreview(gl, renderer);
   if (prebakedUsdz) {
     slot.appendChild(createQuickLookLink(prebakedUsdz));
     setStatus(`Tap "View in your room (AR)", then point at ${where}. It appears at real size; ${handling}.`);

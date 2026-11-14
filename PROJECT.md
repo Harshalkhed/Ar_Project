@@ -17,13 +17,14 @@ A browser-based AR platform for interiors. People scan a printed brochure (image
 | Capability | Page | Android (Chrome) | iPhone (Safari) | Verified |
 |---|---|---|---|---|
 | Image tracking: brochure page → 3D content (in-house engine) | `ar.html` | Not yet device-tested | ✅ Detection, smoothing, pinch-to-scale, Reset | iPhone 2026-09-23 |
-| Room placement: model fixed in the room | `webxr.html` | ✅ WebXR hit-test, pinch/scroll scale, drag-to-spin/tilt with momentum | ✅ AR Quick Look via on-device USDZ export (two-tap flow) | Android 2026-09-28 · iPhone 2026-10-03 |
+| Room placement: model fixed in the room | `webxr.html` (also via the home page's AR button) | ✅ WebXR hit-test (verified 2026-09-28 with pinch-to-scale; the real-size, tap-to-move version of 2026-11-14 is not yet device-tested) | ✅ AR Quick Look at real size, pre-baked USDZ (one tap), no resizing; Safari and Chrome | Android 2026-09-28 · iPhone 2026-11-14 |
+| Wall art: piece hung on a wall | `webxr.html?project=projects/wall-art/project.json` | Built (WebXR wall hits), not yet device-tested | ✅ Quick Look wall anchoring, flat and upright | iPhone 2026-11-14 |
 | Device capability check | `check.html` | ✅ | n/a (shows Quick Look path) | — |
 | Hosting | Vercel static site (`apps/preview/site`) | ✅ | ✅ | — |
 
 **Settled platform split:** our engine for image tracking on every phone, WebXR on Android Chrome, and AR Quick Look on iPhone. iOS Safari has no WebXR, so iPhone room placement always goes through Quick Look. See `Architecture.md`, 2026-10-02.
 
-**Still unchecked:** image tracking on Android; Quick Look return-to-page state, exact placed size and export time on older iPhones; low light, distance and angle extremes; printed brochure stock (matte vs gloss).
+**Still unchecked:** anything on an ARCore-certified Android phone (the Android phone tested on 2026-11-14 reports no WebXR AR support); image tracking on Android; Quick Look return-to-page state, exact placed size and export time on older iPhones; low light, distance and angle extremes; printed brochure stock (matte vs gloss).
 
 ## Approved phases
 
