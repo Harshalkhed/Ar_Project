@@ -14,4 +14,5 @@
 12. Do not change architecture casually. Record decision, reason, alternatives, trade-offs, impact, and migration implications.
 13. Published experiences must remain compatible with the runtime/schema versions they declare.
 14. Never commit secrets, execute arbitrary project JavaScript, or mix private administration data into public runtime payloads.
+15. A native platform adapter (today: ARKit in `apps/ios-placement`) is still a replaceable adapter under rules 3 and 4: it consumes published project documents and delivery assets unchanged, keeps platform types inside itself, and keeps camera and room data on the device. See `Architecture.md`, 2026-11-16.
 

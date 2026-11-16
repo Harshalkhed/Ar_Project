@@ -4,3 +4,9 @@ node_modules
 **/dist
 apps/preview/site
 *.docx
+# Not part of the site: model masters, the NVIDIA pack, the native iOS package, screenshots, tool state.
+assets-src
+SimReady_*
+apps/ios-placement
+Screenshots
+.claude

@@ -61,6 +61,10 @@ Vercel builds and serves the site using `vercel.json`. Deploy from the repositor
 
 Third-party models: NVIDIA SimReady props convert with `python scripts/usd-to-glb.py <prop.usd> <out.glb> --copyright "<NVIDIA notice>"` (needs `pip install --user usd-core`), then `node node_modules/@gltf-transform/cli/bin/cli.js resize <out.glb> assets-src/projects/<name>/assets/<name>.glb --width 1024 --height 1024`, then `pnpm run build:assets`. See `Architecture.md` for the licence decision and notice requirements.
 
+## Native iPhone room scanning (`apps/ios-placement`)
+
+A Swift package (not part of the pnpm workspace) that scans the room with ARKit and refuses a placement that would run through a scanned wall, table or seat: LiDAR iPhones get a classified mesh, other iPhones planes only (furniture is then not detected, and the screen says so). It reads the same `project.json` and `quicklook.usdz` the site publishes. Needs a Mac with Xcode 15+ and an iPhone on iOS 16+; see its README for setup. Written without either to hand, so it is unverified until then.
+
 ## Real-device test
 
 `apps/preview/ar.html` points the camera at a target image and overlays the tracked 3D model, using our own image-tracking engine (`packages/tracking-image-engine`, `packages/tracking-image`'s `BrowserImageTrackingEngine`) — not a vendor SDK. Needs HTTPS (or `localhost`) and a rear camera:

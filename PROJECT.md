@@ -20,6 +20,7 @@ A browser-based AR platform for interiors. People scan a printed brochure (image
 | Room placement: model fixed in the room | `webxr.html` (also via the home page's AR button) | ✅ WebXR at real size: tap the floor spot to place it there, WebXR anchors keep it on the floor, drag to turn | ✅ AR Quick Look at real size, pre-baked USDZ (one tap), no resizing; Safari and Chrome | Android 2026-11-14 · iPhone 2026-11-14 |
 | Wall art: piece hung on a wall | `webxr.html?project=projects/wall-art/project.json` | Built (WebXR wall hits), not yet device-tested | ✅ Quick Look wall anchoring, flat and upright | iPhone 2026-11-14 |
 | Device capability check | `check.html` | ✅ | n/a (shows Quick Look path) | — |
+| Room scan + placement that refuses walls/scanned objects (native iOS, `apps/ios-placement`) | Xcode app target | n/a | Written 2026-11-16, not yet compiled or device-tested (needs a Mac and an iPhone; LiDAR for the mesh, planes only without) | — |
 | Hosting | Vercel static site (`apps/preview/site`) | ✅ | ✅ | — |
 
 **Settled platform split:** our engine for image tracking on every phone, WebXR on Android Chrome, and AR Quick Look on iPhone. iOS Safari has no WebXR, so iPhone room placement always goes through Quick Look. See `Architecture.md`, 2026-10-02.
@@ -91,3 +92,4 @@ This product is only a web app, so the phone browser experience is the product. 
 - Custom domain name for the showcase site and client experiences.
 - Analytics stack and storage for private client assets (open in `PRD.md`).
 - Phase 3 method on iPhone: native app vs photo-based measurement.
+- Whether the native iOS room-placement app (`apps/ios-placement`, built 2026-11-16 because Quick Look exposes no room geometry) ships to clients, which would change the "no native app" delivery model, need an Apple developer account and a distribution path (TestFlight or App Store), and a Mac to build.
