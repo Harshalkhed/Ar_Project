@@ -12,11 +12,13 @@
     /* Three's Start/Stop AR button is fixed 20px from the bottom; keep the status text clear of it. */
     body.has-ar-button #status { bottom: calc(80px + env(safe-area-inset-bottom)); }
     #scale-badge { position: fixed; top: calc(12px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); z-index: 2; padding: 6px 10px; border-radius: 6px; background: rgb(0 0 0 / 0.6); font-variant-numeric: tabular-nums; }
+    #debug { position: fixed; top: calc(52px + env(safe-area-inset-top)); left: 12px; right: 12px; z-index: 2; margin: 0; padding: 6px 10px; border-radius: 6px; background: rgb(0 0 0 / 0.6); font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; pointer-events: none; }
   </style>
 </head>
 <body>
   <canvas id="viewport"></canvas>
   <div id="scale-badge">100%</div>
+  <pre id="debug" hidden></pre>
   <p id="status">Checking WebXR support…</p>
   <script type="module" src="./src/webxr.ts"></script>
 </body>
