@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "id": "demo-seahorn",
+  "name": "Seahorn ceramic jar",
+  "tracking": { "type": "webxr" },
+  "placement": { "surface": "floor" },
+  "triggers": [
+    { "id": "trigger-place", "type": "webxr", "label": "Place", "sceneIds": ["scene-main"], "config": {} }
+  ],
+  "scenes": [
+    { "id": "scene-main", "name": "Main", "objectIds": ["object-seahorn"], "interactions": [] }
+  ],
+  "objects": [
+    {
+      "id": "object-seahorn",
+      "assetId": "asset-seahorn",
+      "name": "Seahorn ceramic jar, 34 × 37 cm",
+      "transform": {
+        "position": { "x": 0, "y": 0, "z": 0 },
+        "rotation": { "x": 0, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "visible": false
+    }
+  ],
+  "assets": [
+    { "id": "asset-seahorn", "kind": "model", "uri": "assets/seahorn.glb" }
+  ],
+  "deployment": { "experienceId": "demo-seahorn", "version": 1, "status": "draft", "runtimeVersion": "0.1.0" }
+}

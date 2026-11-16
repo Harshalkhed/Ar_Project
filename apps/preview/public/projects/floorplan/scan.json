@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "id": "demo-floorplan-scan",
+  "name": "Apartment floor plan (brochure scan)",
+  "tracking": { "type": "image" },
+  "triggers": [
+    { "id": "trigger-page", "type": "image", "label": "Brochure page", "sceneIds": ["scene-main"], "config": { "imageAssetId": "asset-page" } }
+  ],
+  "scenes": [
+    {
+      "id": "scene-main",
+      "name": "Main",
+      "objectIds": ["object-apartment"],
+      "interactions": [
+        { "id": "interaction-reveal", "event": "target_found", "action": "show_object", "targetId": "object-apartment" }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "object-apartment",
+      "assetId": "asset-apartment",
+      "name": "Apartment floor plan",
+      "transform": {
+        "position": { "x": -4.88235, "y": -1.9836, "z": -0.48255 },
+        "rotation": { "x": 1.5708, "y": 0, "z": 0 },
+        "scale": { "x": 0.01, "y": 0.01, "z": 0.01 }
+      },
+      "visible": false
+    }
+  ],
+  "assets": [
+    { "id": "asset-page", "kind": "image", "uri": "assets/target.png" },
+    { "id": "asset-apartment", "kind": "model", "uri": "assets/apartment.glb" }
+  ],
+  "deployment": { "experienceId": "demo-floorplan-scan", "version": 1, "status": "draft", "runtimeVersion": "0.1.0" }
+}

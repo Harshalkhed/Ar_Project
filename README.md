@@ -55,6 +55,12 @@ Up-to-date outputs are skipped; `--force` rebuilds everything (do this after cha
 
 Vercel builds and serves the site using `vercel.json`. Deploy from the repository root with `npx vercel deploy --prod` after a one-time `npx vercel login`.
 
+## Sales demos
+
+`demos.html` lists three demos (a Seahorn ceramic jar, framed wall art, an apartment floor plan), each with **Scan the brochure page**, **Place in your room**, **Print the brochure page** and a QR code. `brochure.html?demo=showpiece|wall-art|floorplan` is a print-ready A4 page (print or save as PDF from the deployed site, so the QR code points at it). Each demo is a folder under `projects/` with `project.json` (room placement), `scan.json` (brochure scan) and `assets/target.png`; add one in `apps/preview/src/demos.ts`.
+
+Third-party models: NVIDIA SimReady props convert with `python scripts/usd-to-glb.py <prop.usd> <out.glb> --copyright "<NVIDIA notice>"` (needs `pip install --user usd-core`), then `node node_modules/@gltf-transform/cli/bin/cli.js resize <out.glb> assets-src/projects/<name>/assets/<name>.glb --width 1024 --height 1024`, then `pnpm run build:assets`. See `Architecture.md` for the licence decision and notice requirements.
+
 ## Real-device test
 
 `apps/preview/ar.html` points the camera at a target image and overlays the tracked 3D model, using our own image-tracking engine (`packages/tracking-image-engine`, `packages/tracking-image`'s `BrowserImageTrackingEngine`) — not a vendor SDK. Needs HTTPS (or `localhost`) and a rear camera:

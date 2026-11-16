@@ -15,6 +15,8 @@ export default defineConfig({
         ar: fileURLToPath(new URL('./ar.html', import.meta.url)),
         webxr: fileURLToPath(new URL('./webxr.html', import.meta.url)),
         check: fileURLToPath(new URL('./check.html', import.meta.url)),
+        demos: fileURLToPath(new URL('./demos.html', import.meta.url)),
+        brochure: fileURLToPath(new URL('./brochure.html', import.meta.url)),
       },
     },
   },

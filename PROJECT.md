@@ -17,7 +17,7 @@ A browser-based AR platform for interiors. People scan a printed brochure (image
 | Capability | Page | Android (Chrome) | iPhone (Safari) | Verified |
 |---|---|---|---|---|
 | Image tracking: brochure page → 3D content (in-house engine) | `ar.html` | Not yet device-tested | ✅ Detection, smoothing, pinch-to-scale, Reset | iPhone 2026-09-23 |
-| Room placement: model fixed in the room | `webxr.html` (also via the home page's AR button) | ✅ WebXR hit-test at real size (verified 2026-11-14 at the show; one placement floated above the floor, now handled with WebXR anchors, which need re-checking) | ✅ AR Quick Look at real size, pre-baked USDZ (one tap), no resizing; Safari and Chrome | Android 2026-11-14 · iPhone 2026-11-14 |
+| Room placement: model fixed in the room | `webxr.html` (also via the home page's AR button) | ✅ WebXR at real size: tap the floor spot to place it there, WebXR anchors keep it on the floor, drag to turn | ✅ AR Quick Look at real size, pre-baked USDZ (one tap), no resizing; Safari and Chrome | Android 2026-11-14 · iPhone 2026-11-14 |
 | Wall art: piece hung on a wall | `webxr.html?project=projects/wall-art/project.json` | Built (WebXR wall hits), not yet device-tested | ✅ Quick Look wall anchoring, flat and upright | iPhone 2026-11-14 |
 | Device capability check | `check.html` | ✅ | n/a (shows Quick Look path) | — |
 | Hosting | Vercel static site (`apps/preview/site`) | ✅ | ✅ | — |
@@ -81,7 +81,7 @@ This product is only a web app, so the phone browser experience is the product. 
 3. Build an asset pipeline script: GLB compression (meshopt/KTX2) plus a pre-baked USDZ per project, with Quick Look using the USDZ when present.
 4. Add in-app-browser detection with an "Open in browser" screen on `ar.html` and `webxr.html`.
 5. Prototype wall-art placement: WebXR `plane-detection` vertical planes on Android (Chrome 147+), and vertical placement in Quick Look on iOS.
-6. Build three demo projects: show piece, wall art, builder floor plan.
+6. Build three demo projects: show piece, wall art, builder floor plan. *(Built 2026-11-14: `demos.html`, printable brochure pages with QR codes; scan images are placeholders until real brochure artwork.)*
 7. Build the showcase website (new app or pages in `apps/`) to the quality bar above.
 8. Add scan analytics events (`runtime_initialized`, `target_found`, placement, dwell time).
 

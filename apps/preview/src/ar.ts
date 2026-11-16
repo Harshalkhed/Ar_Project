@@ -7,6 +7,7 @@ import { RuntimeCore, RuntimeError, type CameraProjection, type RuntimeEvent, ty
 import { TrackingError } from '@internal-webar/tracking';
 import { BrowserImageTrackingEngine, ImageTrackingProvider } from '@internal-webar/tracking-image';
 import { HemisphereLight, PerspectiveCamera, Scene, WebGLRenderer } from 'three';
+import { roomProjectFor } from './demos.js';
 import { offerOpenInBrowser } from './in-app-browser.js';
 import { createKtx2Loader } from './ktx2.js';
 import { PoseSmoother } from './pose-smoother.js';
@@ -192,6 +193,15 @@ async function main(): Promise<void> {
 
 // Shown over the start screen, before any camera prompt: in-app browsers usually block the camera.
 void offerOpenInBrowser();
+
+// Demos keep a brochure-scan project (scan.json) beside a room-placement project (project.json) in the
+// same folder; while scanning one, offer the same piece in the room.
+const roomLink = document.querySelector<HTMLAnchorElement>('#room-link');
+const roomProject = roomProjectFor(new URLSearchParams(location.search).get('project'));
+if (roomLink && roomProject) {
+  roomLink.href = `webxr.html?project=${encodeURIComponent(roomProject)}`;
+  roomLink.hidden = false;
+}
 
 startButton?.addEventListener('click', () => {
   startOverlay?.remove();

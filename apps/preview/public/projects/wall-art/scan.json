@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "id": "demo-wall-art-scan",
+  "name": "Wall art (brochure scan)",
+  "tracking": { "type": "image" },
+  "triggers": [
+    { "id": "trigger-page", "type": "image", "label": "Brochure page", "sceneIds": ["scene-main"], "config": { "imageAssetId": "asset-page" } }
+  ],
+  "scenes": [
+    {
+      "id": "scene-main",
+      "name": "Main",
+      "objectIds": ["object-wall-art"],
+      "interactions": [
+        { "id": "interaction-reveal", "event": "target_found", "action": "show_object", "targetId": "object-wall-art" }
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "object-wall-art",
+      "assetId": "asset-wall-art",
+      "name": "Framed picture, standing on the page",
+      "transform": {
+        "position": { "x": 0, "y": 0, "z": 0.41 },
+        "rotation": { "x": 1.5708, "y": 0, "z": 0 },
+        "scale": { "x": 1, "y": 1, "z": 1 }
+      },
+      "visible": false
+    }
+  ],
+  "assets": [
+    { "id": "asset-page", "kind": "image", "uri": "assets/target.png" },
+    { "id": "asset-wall-art", "kind": "model", "uri": "assets/wall_art.glb" }
+  ],
+  "deployment": { "experienceId": "demo-wall-art-scan", "version": 1, "status": "draft", "runtimeVersion": "0.1.0" }
+}

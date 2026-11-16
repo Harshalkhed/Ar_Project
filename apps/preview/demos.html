@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>AR Demos</title>
+  <style>
+    :root { --ink: #16181d; --muted: #5d6470; --line: #e3e1dc; --paper: #faf8f4; --card: #ffffff; --accent: #2a5bd7; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 1080px; margin: 0 auto; padding: calc(28px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom)); }
+    header h1 { font: 600 clamp(28px, 6vw, 40px)/1.15 Georgia, "Times New Roman", serif; margin: 0 0 8px; letter-spacing: -0.01em; }
+    header p { margin: 0 0 28px; color: var(--muted); max-width: 46em; }
+    .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    article { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+    article img.target { width: 100%; height: 220px; object-fit: contain; display: block; background: #efebe4; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    h2 { font: 600 21px/1.25 Georgia, "Times New Roman", serif; margin: 0; }
+    .pitch { margin: 0; color: var(--muted); }
+    .hint { margin: 0; font-size: 14px; color: var(--muted); }
+    .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+    .actions a { display: block; min-height: 44px; padding: 11px 14px; border-radius: 9px; text-align: center; text-decoration: none; font-weight: 600; }
+    .primary { background: var(--accent); color: #fff; }
+    .secondary { border: 1px solid #c9c6bf; color: var(--ink); }
+    .qr { display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+    .qr svg { width: 88px; height: 88px; flex: none; }
+    a:focus-visible { outline: 3px solid #f0a020; outline-offset: 2px; }
+    footer { margin-top: 32px; font-size: 13px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>See it in your space</h1>
+      <p>Three short demos. Scan a brochure page to see the piece in 3D, then place it in your own room at real size. Works in Safari or Chrome on iPhone, and Chrome on Android phones with Google Play Services for AR.</p>
+    </header>
+    <div class="grid" id="demos" aria-live="polite"></div>
+    <footer>Print a brochure page, or show its scan image on another screen, then scan its QR code with your phone camera.</footer>
+  </main>
+  <script type="module" src="./src/demos-page.ts"></script>
+</body>
+</html>

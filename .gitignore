@@ -7,3 +7,5 @@ apps/preview/site/
 .vercel/
 
 .vercel
+# Third-party content packs (licensed separately, many GB); only optimised derivatives under assets-src/ are committed.
+/SimReady_*/

@@ -9,9 +9,11 @@
     "@internal-webar/runtime-core": "workspace:*",
     "@internal-webar/tracking": "workspace:*",
     "@internal-webar/tracking-image": "workspace:*",
+    "qrcode": "1.5.4",
     "three": "0.186.0"
   },
   "devDependencies": {
+    "@types/qrcode": "1.5.6",
     "@types/three": "0.186.0",
     "vite": "8.3.0"
   },
