@@ -15,6 +15,8 @@ export interface ObjectControl {
   getScale(): number;
   /** Spins the object about the anchor's vertical (world) axis, on top of its authored orientation — a Sketchfab-style turntable, so people can inspect a fixed, placed object from every side without physically walking around it. */
   addYaw(deltaRadians: number): void;
+  /** The current spin about the vertical, in radians (room placement adds it to the anchor's own turn). */
+  getYaw(): number;
   /** Tips the object about a fixed horizontal (world) axis, so it can also be viewed from above/below, not just spun left-right. */
   addPitch(deltaRadians: number): void;
   resetOrientation(): void;
@@ -70,6 +72,7 @@ export function createObjectControl(renderer: RendererAdapter, objectIds: readon
       apply();
     },
     getScale: () => scaleFactor,
+    getYaw: () => yaw,
     addYaw(deltaRadians) {
       yaw += deltaRadians;
       apply();

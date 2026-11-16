@@ -6,12 +6,13 @@
 // uses (see Architecture.md's WebXR scoping entry); the pre-tap reticle stays outside either way.
 import { placementSurfaceOf, validateProject, type PlacementSurface, type ProjectDocument } from '@internal-webar/project-schema';
 import { ThreeRenderer, type AssetReader } from '@internal-webar/renderer';
-import { Box3, Color, HemisphereLight, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, Quaternion, RingGeometry, Scene, Vector3, WebGLRenderer } from 'three';
+import { Box3, Color, DoubleSide, HemisphereLight, Matrix4, Mesh, MeshBasicMaterial, PerspectiveCamera, PlaneGeometry, Quaternion, RingGeometry, Scene, Vector3, WebGLRenderer } from 'three';
 import { ARButton } from 'three/addons/webxr/ARButton.js';
 import { offerOpenInBrowser } from './in-app-browser.js';
 import { createKtx2Loader } from './ktx2.js';
 import { buildUsdzUrl, createQuickLookLink, findPrebakedUsdz, supportsQuickLook, WALL_HANGING_CENTRE_M } from './quick-look.js';
 import { createObjectControl, setUpTransformGestures, type ObjectControl } from './scale-control.js';
+import { blocks, checkPlacement, describeVerdict, poseFromAnchor, scannedPlane, type Footprint, type ScannedPlane, type Verdict } from './room.js';
 import { describeHits, placementFor } from './surface.js';
 
 const IDENTITY = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -58,7 +59,12 @@ async function main(): Promise<void> {
   const readAsset: AssetReader = (uri) => fetchBytes(new URL(uri, url));
   await renderer.loadScene(document, sceneId, readAsset);
   for (const objectId of objectIds) renderer.setVisible(objectId, true);
+  // The piece's real footprint (bounding box at scale 1, in model space) for the room check below.
+  renderer.setAnchor(IDENTITY);
+  const bounds = new Box3().setFromObject(renderer.scene);
   renderer.setAnchor(null);
+  const footprint: Footprint = { width: bounds.max.x - bounds.min.x, depth: bounds.max.z - bounds.min.z, height: bounds.max.y - bounds.min.y };
+  const footprintCentre = { x: (bounds.min.x + bounds.max.x) / 2, z: (bounds.min.z + bounds.max.z) / 2 };
   // Room placement shows the object at its real size (the project's own transform, in metres): no
   // auto-fit and no pinch-to-resize. On the floor, dragging only spins it so it stays upright; wall
   // pieces get no gestures at all, since any turn would lift them off the wall.
@@ -79,6 +85,32 @@ async function main(): Promise<void> {
   reticle.matrixAutoUpdate = false;
   reticle.visible = false;
   stage.add(reticle);
+  // Floor pieces show their footprint instead of the ring: blue while the room is unknown, green where
+  // the piece fits, red where it would stand in a detected wall or off the detected floor. A second
+  // outline sits under the placed piece only while it is in a wall (a drag can turn it into one).
+  const outlineGeometry = new PlaneGeometry(footprint.width + 0.04, footprint.depth + 0.04).rotateX(-Math.PI / 2).translate(footprintCentre.x, 0.005, footprintCentre.z);
+  const outline = (color: number): Mesh => {
+    const mesh = new Mesh(outlineGeometry, new MeshBasicMaterial({ color, transparent: true, opacity: 0.35, side: DoubleSide, depthWrite: false }));
+    mesh.matrixAutoUpdate = false;
+    mesh.visible = false;
+    stage.add(mesh);
+    return mesh;
+  };
+  const guide = outline(0x2a6df4);
+  const placedWarning = outline(0xd93030);
+  const OUTLINE = { unknown: 0x2a6df4, ok: 0x2ec06a, blocked: 0xd93030 };
+  const UP = new Vector3(0, 1, 0);
+  const outlineMatrix = (anchor: readonly number[], spin: number): Matrix4 =>
+    new Matrix4().makeRotationAxis(UP, Math.atan2(anchor[8], anchor[10]) + spin).setPosition(anchor[12], anchor[13], anchor[14]);
+
+  // The room as Chrome reports it (WebXR plane detection, Chrome 147+): floors and the parts of walls
+  // the phone has seen. Converted only when a plane changes. Without plane detection the map stays empty,
+  // placement works as before, and the status says walls are unknown.
+  const roomPlanes = new Map<XRPlane, { changed: number; plane: ScannedPlane }>();
+  let planeList: ScannedPlane[] = [];
+  let roomKnown = false;
+  const verdictAt = (anchor: readonly number[]): Verdict | null =>
+    surface === 'floor' && roomKnown ? checkPlacement(footprint, poseFromAnchor(anchor, control.getYaw(), footprintCentre), planeList) : null;
 
   gl.xr.enabled = true;
   // Three.js patches this camera's pose from the XR headset/phone each frame during a session.
@@ -96,7 +128,7 @@ async function main(): Promise<void> {
 
   // `?debug`: what the phone reports, for device-test reports (Architecture.md); not product UI.
   const debug = new URLSearchParams(location.search).has('debug')
-    ? { features: 'session not started', touchInput: '', ring: '', touch: 'no touch yet', planes: '', anchor: '', drift: '', frames: 0 }
+    ? { features: 'session not started', touchInput: '', ring: '', touch: 'no touch yet', planes: '', room: '', anchor: '', drift: '', frames: 0 }
     : null;
   const debugElement = window.document.querySelector<HTMLPreElement>('#debug');
   if (debug && debugElement) {
@@ -104,7 +136,7 @@ async function main(): Promise<void> {
     setInterval(() => {
       debugElement.textContent =
         `fps ${debug.frames} · features: ${debug.features}${debug.touchInput}\n` +
-        `ring: ${debug.ring}\ntouch: ${debug.touch}\nplanes: ${debug.planes}\nanchor: ${debug.anchor}${debug.drift}\n` +
+        `ring: ${debug.ring}\ntouch: ${debug.touch}\nplanes: ${debug.planes}\nroom check: ${debug.room}\nanchor: ${debug.anchor}${debug.drift}\n` +
         (/Chrome\/\d+/.exec(navigator.userAgent)?.[0] ?? '');
       debug.frames = 0;
     }, 1000);
@@ -151,6 +183,11 @@ async function main(): Promise<void> {
       if (touchSource) setStatus(surface === 'wall' && !acceptFloorForWall ? 'Tap on the wall where you want it.' : 'Tap on the floor where you want it.');
       return;
     }
+    const verdict = verdictAt(target);
+    if (verdict && blocks(verdict)) {
+      setStatus(describeVerdict(verdict));
+      return;
+    }
     renderer.setAnchor(target);
     placedPose = target;
     if (debug) debug.drift = '';
@@ -158,7 +195,8 @@ async function main(): Promise<void> {
     placedAnchor = null;
     placement += 1;
     pendingAnchorPose = target;
-    setStatus(surface === 'wall' ? 'Placed at real size. Tap another spot on the wall to move it.' : 'Placed at real size. Tap another spot on the floor to move it; drag to turn it.');
+    const wallsNote = surface === 'floor' && !roomKnown ? ' This phone reports no walls, so the outline cannot warn about them.' : '';
+    setStatus(surface === 'wall' ? 'Placed at real size. Tap another spot on the wall to move it.' : `Placed at real size. Tap another spot on the floor to move it; drag to turn it.${wallsNote}`);
   });
   stage.add(controller);
 
@@ -239,18 +277,49 @@ async function main(): Promise<void> {
           if (debug) debug.touch = describeHits(hits, surface, viewer);
         }
       }
+      if (referenceSpace && frame.detectedPlanes) {
+        if (frame.detectedPlanes.size) roomKnown = true;
+        for (const plane of frame.detectedPlanes) {
+          if (roomPlanes.get(plane)?.changed === plane.lastChangedTime) continue;
+          const pose = frame.getPose(plane.planeSpace, referenceSpace);
+          if (!pose) continue;
+          const id = roomPlanes.get(plane)?.plane.id ?? `plane-${roomPlanes.size + 1}`;
+          roomPlanes.set(plane, { changed: plane.lastChangedTime, plane: scannedPlane(id, plane.orientation, plane.semanticLabel, pose.transform.matrix, plane.polygon) });
+        }
+        for (const plane of roomPlanes.keys()) if (!frame.detectedPlanes.has(plane)) roomPlanes.delete(plane);
+        planeList = [...roomPlanes.values()].map((entry) => entry.plane);
+      }
+      // A placed floor piece turned (by a drag) or re-estimated (by its anchor) into a wall gets a red outline.
+      if (placedPose && surface === 'floor') {
+        const verdict = verdictAt(placedPose);
+        placedWarning.visible = verdict !== null && blocks(verdict);
+        if (placedWarning.visible) placedWarning.matrix.copy(outlineMatrix(placedPose, control.getYaw()));
+      } else {
+        placedWarning.visible = false;
+      }
       if (debug && referenceSpace) {
         debug.anchor = placedAnchor && frame.trackedAnchors?.has(placedAnchor) ? 'tracked' : placedAnchor ? 'not tracked this frame' : pendingAnchorPose ? 'pending' : 'none';
-        const planes = [...(frame.detectedPlanes ?? [])];
-        debug.planes = frame.detectedPlanes ? `${planes.filter((p) => p.orientation === 'horizontal').length} horizontal, ${planes.filter((p) => p.orientation === 'vertical').length} vertical` : 'not available';
+        const floors = planeList.filter((p) => p.kind === 'floor').length;
+        const walls = planeList.filter((p) => p.kind === 'wall').length;
+        debug.planes = frame.detectedPlanes ? `${planeList.length} (${floors} floor, ${walls} wall, ${planeList.length - floors - walls} other)` : 'not available';
       }
       if (hitTestSource && referenceSpace) {
         const hits = posesOf(frame.getHitTestResults(hitTestSource), referenceSpace);
         const found = placementFor(hits, surface, viewer, wallFromFloor);
         if (debug) debug.ring = describeHits(hits, surface, viewer);
         candidate = found?.anchor ?? null;
-        if (found) reticle.matrix.fromArray(found.hit); // The ring lies flat on the surface (its +Y is the normal).
-        reticle.visible = candidate !== null;
+        if (surface === 'floor') {
+          guide.visible = candidate !== null;
+          if (candidate) {
+            guide.matrix.copy(outlineMatrix(candidate, control.getYaw()));
+            const verdict = verdictAt(candidate);
+            (guide.material as MeshBasicMaterial).color.setHex(verdict === null ? OUTLINE.unknown : blocks(verdict) ? OUTLINE.blocked : OUTLINE.ok);
+            if (debug) debug.room = verdict === null ? 'room unknown (no planes reported)' : describeVerdict(verdict);
+          }
+        } else {
+          if (found) reticle.matrix.fromArray(found.hit); // The ring lies flat on the surface (its +Y is the normal).
+          reticle.visible = candidate !== null;
+        }
         if (candidate) wallHintShown = true; // A wall was found; no hint needed this session.
         if (surface === 'wall' && !wallHintShown && time - searchingSince > WALL_HINT_AFTER_MS) {
           wallHintShown = true;
@@ -262,7 +331,11 @@ async function main(): Promise<void> {
     gl.render(stage, camera);
   });
 
-  setStatus(`Tap "Start AR", point at ${where} until the blue ring appears, then tap the spot on ${where} where you want it. It appears at real size.`);
+  setStatus(
+    surface === 'floor'
+      ? 'Tap "Start AR", then move the phone slowly over the floor and along the walls. Point at the floor until the outline appears (green = fits, red = in a wall), then tap the spot where you want it. It appears at real size.'
+      : `Tap "Start AR", point at ${where} until the blue ring appears, then tap the spot on ${where} where you want it. It appears at real size.`,
+  );
 }
 
 // In an in-app browser neither WebXR nor Quick Look usually works; offer the real browser first.
