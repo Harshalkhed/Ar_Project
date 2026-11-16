@@ -8,6 +8,7 @@ export {
   COMPILED_TARGET_FORMAT,
   COMPILED_TARGET_VERSION,
   compileImageTarget,
+  MAX_TARGET_DIMENSION,
   parseCompiledTarget,
   serializeCompiledTarget,
   type CompiledImageTarget,

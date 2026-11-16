@@ -22,6 +22,18 @@ const FRONTAL = [1, 0, 0, 0, -1, 0, 0, 0, -1];
 const poster = texturedImage(240, 180, 7);
 const decoy = texturedImage(240, 180, 99);
 
+test('a high-resolution target is compiled at working size and still detected when it appears small', async () => {
+  const { MAX_TARGET_DIMENSION, ImageTargetDetector: Detector, compileImageTarget: compile } = await import('../packages/tracking-image-engine/dist/index.js');
+  const big = texturedImage(1800, 1350, 7); // Print-resolution artwork.
+  const target = compile(big);
+  assert.ok(Math.max(target.width, target.height) <= MAX_TARGET_DIMENSION, `compiled at ${target.width}x${target.height}`);
+  assert.ok(Math.abs(target.width / target.height - 1800 / 1350) < 0.01, 'keeps the aspect ratio');
+  // Seen from 1.5 target-widths away with fx = 300, the page spans about 200 px of a 320 px frame.
+  const intrinsics = { fx: 300, fy: 300, cx: 160, cy: 120 };
+  const { frame } = sceneWithTarget({ target: big, intrinsics, frameWidth: 320, frameHeight: 240, rotationCv: multiply3(rotation(0.08, 0.05, 0), FRONTAL), translationCv: [0, 0, 1.5] });
+  assert.ok(new Detector([target]).detect(frame, intrinsics), 'detected');
+});
+
 /** Expected OpenGL/three pose: flip camera y and z of the CV pose, column-major. */
 function expectedGlPose(R, t) {
   const F = [1, 0, 0, 0, -1, 0, 0, 0, -1];

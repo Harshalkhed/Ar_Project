@@ -1,5 +1,5 @@
 import { DESCRIPTOR_BYTES, extractFeatures, type Feature } from './features.js';
-import type { GrayImage } from './image.js';
+import { blur, resize, type GrayImage } from './image.js';
 
 export const COMPILED_TARGET_FORMAT = 'internal-webar/image-target';
 /** Bump when the feature pipeline or descriptor pattern changes; old compiled targets must be recompiled. */
@@ -23,9 +23,30 @@ export interface SerializedImageTarget {
 /** Feature settings for targets: more features and levels than a live frame, since this runs offline. */
 export const TARGET_FEATURE_OPTIONS = { maxFeatures: 900, levels: 5, scaleFactor: 0.75, threshold: 18 } as const;
 
+/**
+ * Targets are compiled at a working size, not at their source resolution. Frames are processed at most
+ * 480 px wide, so a page held in view appears roughly 150-400 px across, and the target's coarsest feature
+ * level (0.75^4 ≈ 32% of its size) must reach down to that. A 584 px image worked on a real iPhone; a
+ * 900 × 1200 brochure image could not be detected at a typical distance (2026-11-14), because its coarsest
+ * level was still 285 px tall. Print-quality artwork is often 2000+ px, so every target is scaled to this.
+ */
+export const MAX_TARGET_DIMENSION = 600;
+
+/** Downscale with a blur before each halving, so fine print detail does not alias into false corners. */
+function toWorkingSize(image: GrayImage): GrayImage {
+  let current = image;
+  let scale = MAX_TARGET_DIMENSION / Math.max(image.width, image.height);
+  while (scale < 0.5) {
+    current = resize(blur(current), 0.5);
+    scale *= 2;
+  }
+  return scale < 1 ? resize(blur(current), scale) : current;
+}
+
 /** Analyses a target image once (offline or at publish time) so detection only has to process camera frames. */
 export function compileImageTarget(image: GrayImage): CompiledImageTarget {
-  return { width: image.width, height: image.height, features: extractFeatures(image, TARGET_FEATURE_OPTIONS) };
+  const working = toWorkingSize(image);
+  return { width: working.width, height: working.height, features: extractFeatures(working, TARGET_FEATURE_OPTIONS) };
 }
 
 const round = (value: number): number => Math.round(value * 1000) / 1000;
